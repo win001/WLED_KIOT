@@ -1,5 +1,7 @@
 #include "wled.h"
 
+#if defined(WLED_ENABLE_WEBSERVER)
+
 #include "html_ui.h"
 #ifdef WLED_ENABLE_SIMPLE_UI
   #include "html_simple.h"
@@ -654,3 +656,4 @@ void serveSettings(AsyncWebServerRequest* request, bool post)
   setStaticContentCacheHeaders(response);
   request->send(response);
 }
+#endif
