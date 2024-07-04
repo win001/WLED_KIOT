@@ -5,7 +5,7 @@ DEBUG MODULE
 Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 
 */
-
+#include "wled.h"
 #if DEBUG_SUPPORT
 
 #include <EEPROM_Rotate.h>
@@ -130,6 +130,38 @@ void debugSend_P(PGM_P format_P, ...) {
 
     optimistic_yield(100);
 
+    delete[] buffer;
+}
+
+void serialSend_P(PGM_P format, ...) {
+    char f[strlen_P(format) + 1];
+    memcpy_P(f, format, sizeof(f));
+
+    va_list args;
+    va_start(args, format);
+    char test[1];
+    int len = ets_vsnprintf(test, 1, f, args) + 1;
+    // int len = ets_vsnprintf(buffer, SERIAL_MSG_MAX_LENGTH, f, args);
+
+    char* buffer = new char[len];
+    ets_vsnprintf(buffer, len, f, args);
+    va_end(args);
+    Serial.print(buffer);
+    delete[] buffer;
+    // optimistic_yield(100);
+}
+
+void serialSend(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    char test[1];
+    int len = ets_vsnprintf(test, 1, format, args) + 1;
+    char* buffer = new char[len];
+
+    ets_vsnprintf(buffer, len, format, args);
+    va_end(args);
+    Serial.print(buffer);
+    // optimistic_yield(100);
     delete[] buffer;
 }
 

@@ -355,6 +355,14 @@ uint16_t crc16(const unsigned char* data_p, size_t length);
 um_data_t* simulateSound(uint8_t simulationId);
 void enumerateLedmaps();
 uint8_t get_random_wheel_index(uint8_t pos);
+void printFileContentFS(const char* path);
+long long char2LL(char *str);
+void subString(char *source, char *destination, int start_index, int end_index);
+int getBase64Len(int len);
+int getCipherlength(int len);
+String rightString(const char *s, size_t length);
+unsigned int getFreeHeap();
+unsigned int getInitialFreeHeap();
 
 // RAII guard class for the JSON Buffer lock
 // Modeled after std::lock_guard
@@ -428,5 +436,303 @@ void sendDataWs(AsyncWebSocketClient * client = nullptr);
 void XML_response(AsyncWebServerRequest *request, char* dest = nullptr);
 void URL_response(AsyncWebServerRequest *request);
 void getSettingsJS(byte subPage, char* dest);
+
+//kiot_web.cpp
+void webSetup();
+bool configStoreWifi(JsonArray wifiArray);
+bool configStore(String key, JsonArray value);
+bool configStore(String key, String value);
+void getApiKeyChecksum(char *inpBuf);
+void respondUnauthorized(AsyncWebServerRequest *request);
+void responseBadRequest(AsyncWebServerRequest * request, const char * message);
+void _onWifiScanServer(AsyncWebServerRequest* request);
+void _wifiScan(DynamicJsonDocument& root);
+void _wifiScanFix();
+
+//base64.cpp
+int base64_encode(char *output, char *input, int inputLen);
+int base64_decode(char *output, char *input, int inputLen);
+int base64_enc_len(int inputLen);
+int base64_dec_len(char *input, int inputLen);
+
+//encrypt.cpp
+void encryptSetup();
+void setupEncryption();
+void char_array_to_byte_array(const char *str, byte byte_arr[], uint8_t string_length);
+void temp_char_string_to_byte(const char *str, uint8_t byte_arr[], uint8_t string_length);
+void encryptMsg(const char *msg, char *data_encoded, char *iv_encoded, byte *aesKey);
+void encryptMsg(const char *msg, char *data_encoded, char *iv_encoded);
+void decryptMsg(const char *payload, char *message, int payload_len, const char *iv_encoded, byte *aesKey);
+void decryptMsg(const char *payload, char *message, int payload_len, const char *iv_encoded);
+void decodeWifiPass(const char *RevB64Pass, char *buffer, int payloadLen);
+uint8_t getrnd();
+void gen_iv(byte *iv);
+void hmacHash(const char *message, char *output, const char *key, int key_length);
+bool compareHash(const char *message, const char *hash);
+
+//debiug.cpp
+void _debugSend(char* message);
+void debugSetup();
+void debugSend(const char* format, ...);
+void debugSend_P(PGM_P format_P, ...);
+void serialSend_P(PGM_P format, ...);
+void serialSend(const char* format, ...); 
+void debugConfigure();
+
+//kiot_settings.cpp
+#include <Embedis.h>
+#include "libs/EmbedisWrap.h"
+#include <EEPROM_Rotate.h>
+// EEPROM_Rotate EEPROMr;
+void getSupportedConfigWeb(DynamicJsonDocument& root);
+void settingsLoop();
+void settingsSetup();
+void _settingsInitCommands();
+void settingsRegisterCommand(const String& name, void (*call)(Embedis*));
+void KiotCustomSet(Embedis* e);
+void KiotCustomGet(Embedis* e);
+void KiotCustomDel(Embedis* e);
+void moveSetting(const String from, const String to);
+template <typename T> bool setSetting(const String& key, T value) {
+    return Embedis::set(key, String(value));
+}
+template <typename T> bool setSetting(const String& key, unsigned int index, T value) {
+    return setSetting(key + String(index), value);
+}
+template <typename T> String getSetting(const String& key, T defaultValue) {
+    String value;
+    if (!Embedis::get(key, value)) value = String(defaultValue);
+    return value;
+}
+template <typename T> String getSetting(const String& key, unsigned int index, T defaultValue) {
+    return getSetting(key + String(index), defaultValue);
+}
+// template <typename T> String getSetting(const String& key, unsigned int index, T defaultValue);
+// template <typename T> String getSetting(const String& key, T defaultValue);
+String getSetting(const String& key);
+// template <typename T> bool setSetting(const String& key, unsigned int index, T value);
+// template <typename T> bool setSetting(const String& key, T value);
+bool delSetting(const String& key);
+bool delSetting(const String& key, unsigned int index);
+bool hasSetting(const String& key);
+bool hasSetting(const String& key, unsigned int index);
+void saveSettings();
+void settingsFactoryReset();
+void migrateSettings();
+bool setDefaultSettings();
+void initSettigs();
+String generateApiKey();
+void _deleteDevice();
+
+//prototypes.h
+// #include <Arduino.h>
+// #include <ArduinoJson.h>
+// #include <pgmspace.h>
+// #include <functional>
+// #include <IRsend.h>
+
+// extern "C" {
+// #include "user_interface.h"
+// }
+
+// #if WEB_SUPPORT
+
+// // -----------------------------------------------------------------------------
+// // WebServer
+// // -----------------------------------------------------------------------------
+// #include <ESPAsyncWebServer.h>
+// AsyncWebServer* webServer();
+
+// // -----------------------------------------------------------------------------
+// // API
+// // -----------------------------------------------------------------------------
+typedef std::function<void(char*, size_t)> apiGetCallbackFunction;
+typedef std::function<void(const char*, const char*, bool)> apiPostCallbackFunction;
+void apiRegister(const char* url, const char* key, apiGetCallbackFunction getFn, apiPostCallbackFunction postFn = NULL);
+
+typedef std::function<void(void)> after_config_parse_callback_f;
+void afterConfigParseRegister(after_config_parse_callback_f callback);
+
+typedef std::function<void(DynamicJsonDocument&, char* topic, bool nested_under_topic)> set_config_keys_callback_f;
+void setConfigKeys(set_config_keys_callback_f callback);
+
+// // Core version 2.4.2 and higher changed the cont_t structure to a pointer:
+// // https://github.com/esp8266/Arduino/commit/5d5ea92a4d004ab009d5f642629946a0cb8893dd#diff-3fa12668b289ccb95b7ab334833a4ba8L35
+// // Core version 2.5.0 introduced EspClass helper method:
+// // https://github.com/esp8266/Arduino/commit/0e0e34c614fe8a47544c9998201b1d9b3c24eb18
+// extern "C" {
+
+//     #include <cont.h>
+// /* #if defined(ARDUINO_ESP8266_RELEASE_2_3_0) \
+//     || defined(ARDUINO_ESP8266_RELEASE_2_4_0) \
+//     || defined(ARDUINO_ESP8266_RELEASE_2_4_1)
+//     extern cont_t g_cont;
+//     #define getFreeStack() cont_get_free_stack(&g_cont)
+// #elif defined(ARDUINO_ESP8266_RELEASE_2_4_2)
+//     extern cont_t* g_pcont;
+//     #define getFreeStack() cont_get_free_stack(g_pcont)
+// #else
+//     #define getFreeStack() ESP.getFreeContStack()
+// #endif */
+// extern cont_t* g_pcont;
+// #define getFreeStack() cont_get_free_stack(g_pcont)
+// }
+
+// // -----------------------------------------------------------------------------
+// // EEPROM_ROTATE
+// // -----------------------------------------------------------------------------
+// #include <EEPROM_Rotate.h>
+// EEPROM_Rotate EEPROMr;
+
+// /*
+// // Commented by KIOT
+
+// // -----------------------------------------------------------------------------
+// // WebSockets
+// // -----------------------------------------------------------------------------
+// typedef std::function<void(JsonObject&)> ws_on_send_callback_f;
+// void wsOnSendRegister(ws_on_send_callback_f callback);
+// void wsSend(ws_on_send_callback_f sender);
+
+// typedef std::function<void(const char *, JsonObject&)> ws_on_action_callback_f;
+// void wsOnActionRegister(ws_on_action_callback_f callback);
+
+// typedef std::function<void(void)> ws_on_after_parse_callback_f;
+// void wsOnAfterParseRegister(ws_on_after_parse_callback_f callback);
+
+// */
+
+// #endif  // WEB_SUPPORT
+
+// // void mqttRegister(void (*callback)(unsigned int, const char *, const char *));
+// // String mqttSubtopic(char * topic);
+// /*
+// // template<typename T> bool setSetting(const String& key, T value);
+// // template<typename T> bool setSetting(const String& key, unsigned int index, T value);
+// // template<typename T> String getSetting(const String& key, T defaultValue);
+// // template<typename T> String getSetting(const String& key, unsigned int index, T defaultValue);
+// */
+
+// // -----------------------------------------------------------------------------
+// // Settings
+// // -----------------------------------------------------------------------------
+// #include <Embedis.h>
+// template <typename T> bool setSetting(const String& key, T value);
+// template <typename T> bool setSetting(const String& key, unsigned int index, T value);
+// template <typename T> String getSetting(const String& key, T defaultValue);
+// template <typename T> String getSetting(const String& key, unsigned int index, T defaultValue);
+// void settingsGetJson(JsonObject& data);
+// bool settingsRestoreJson(JsonObject& data);
+// void settingsRegisterCommand(const String& name, void (*call)(Embedis*));
+
+// // -----------------------------------------------------------------------------
+// // MQTT
+// // -----------------------------------------------------------------------------
+// typedef std::function<void(unsigned int, const char*, const char*, bool, bool)> mqtt_callback_f;
+// void mqttRegister(mqtt_callback_f callback);
+// String mqttSubtopic(char* topic);
+// bool mqttSend(const char* topic, const char* message, bool stack_msg, bool dont_enctrypt, bool useGetter, bool retain);
+// bool mqttSendRaw(const char* topic, const char* message, bool dont_encrypt, bool retain);
+
+// // -----------------------------------------------------------------------------
+// // WiFi
+// // -----------------------------------------------------------------------------
+
+// #include "JustWifi.h"
+// typedef std::function<void(justwifi_messages_t code, char* parameter)> wifi_callback_f;
+// void wifiRegister(wifi_callback_f callback);
+// bool createLongAP(bool withDelay = true);
+
+// // -----------------------------------------------------------------------------
+// // Utils
+// // -----------------------------------------------------------------------------
+// char* ltrim(char* s);
+
+// template <class MapType> class MapKeyIterator {
+//    public:
+//     class iterator {
+//        public:
+//         iterator(typename MapType::iterator it) : it(it) {}
+//         iterator operator++() { return ++it; }
+//         bool operator!=(const iterator& other) { return it != other.it; }
+//         typename MapType::key_type operator*() const { return it->first; }  // Return key part of map
+//        private:
+//         typename MapType::iterator it;
+//     };
+
+//    private:
+//     MapType& map;
+
+//    public:
+//     MapKeyIterator(MapType& m) : map(m) {}
+//     iterator begin() { return iterator(map.begin()); }
+//     iterator end() { return iterator(map.end()); }
+// };
+// template <class MapType> MapKeyIterator<MapType> MapKeys(MapType& m) {
+//     return MapKeyIterator<MapType>(m);
+// }
+
+// // HTTPSERVER
+// void _httpGetRaw(const char* path, const char* query);
+
+// // -----------------------------------------------------------------------------
+// // GPIO
+// // -----------------------------------------------------------------------------
+// bool gpioValid(unsigned char gpio);
+// bool gpioGetLock(unsigned char gpio);
+// bool gpioReleaseLock(unsigned char gpio);
+
+
+
+// // -----------------------------------------------------------------------------
+// // HM11
+// // -----------------------------------------------------------------------------
+
+// typedef enum  {UART_ERR_OK, UART_ERR_TIMEOUT} Uart_Errors;
+// Uart_Errors GetData(char *receivedBuff, int expectedLen, unsigned int timeOut); //expect some data in specified time
+
+// // ---------------------------------------------------------
+// // IR 
+// // ---------------------------------------------------------
+// void SendAcGeneric(stdAc::state_t acState);
+
+// // TUYA
+// #if TUYA_SUPPORT
+// namespace Tuya {
+//     void tuyaSetup();
+//     void tuyaSetupSwitch();
+//     void tuyaSetupDimmer();
+//     void tuyaSendSwitch(unsigned char, bool);  
+//     void tuyaSendDimmer(unsigned char, unsigned int);
+//     void sendWiFiStatus();
+// #if THERMOSTAT_PROVIDER == THERMOSTAT_PROVIDER_TUYA
+//     void tuyaSetupThermostat();
+//     void tuyaSendThermostatPower(bool);
+//     void tuyaSendThermostatTemp(float);
+//     void tuyaSendThermostatFanMode(uint8_t);
+//     void tuyaSendThermostatOpMode(uint8_t);
+//     void tuyaSendDPReportSucess(bool);
+//     // void sendThermoStateRoomTemp();
+// #endif
+// #if CURTAIN_PROVIDER == CURTAIN_PROVIDER_TUYA
+//     void tuyaSetupCurtain();
+//     void tuyaSendCurtainPostion(uint8_t);
+//     void tuyaSendCurtainSwitch(uint8_t);
+//     void tuyaSendCurtainReverseState(bool);
+// #endif
+// #if TUYA_SENSOR_TYPE == TY_SENSOR_GAS
+//     void tuyaSetupGasSensor();
+//     void tuyasendAlarmTimetoMCU(int);
+//     void tuyasendMufflingtoMCU(bool);
+//     void tuyasendCurrentTimetoMCU(uint8_t *currTime);
+//     void tuyasendMaxTempAlarmValuetoMCU(int);
+//     void tuyasendOutdoorTemptoMCU(int);
+//     void tuyasendSelfCheckingtoMCU(bool);   
+// #endif
+// }
+// template <typename T> void updateSensorState(uint8_t type, uint8_t dp_id, T value);
+// #endif
+
+// void fireIR(unsigned long long actCode, int length, int proto, int repeat, int freq, stdAc::state_t acState);
 
 #endif

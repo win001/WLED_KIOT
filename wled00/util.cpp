@@ -2,7 +2,9 @@
 #include "fcn_declare.h"
 #include "const.h"
 
-
+#ifdef WLED_DISABLE_WEBSERVER
+void createEditHandler(bool enable){} // creating this empty function if wled webserver is disabled to avoid undefined reference error, it is getting called in util.cpp, wled.cpp and set.cpp
+#endif
 //helper to get int value at a position in string
 int getNumVal(const String* req, uint16_t pos)
 {
@@ -586,4 +588,67 @@ uint8_t get_random_wheel_index(uint8_t pos) {
     d = MIN(x, y);
   }
   return r;
+}
+
+/*
+ * print the content of a given file to the serial console
+ */
+void printFileContentFS(const char* path) {
+    File file = WLED_FS.open(path, "r");
+    if (!file) {
+        DEBUG_PRINT(F("Failed to open file for reading : "));
+        DEBUG_PRINTLN(path);
+        return;
+    }
+    DEBUG_PRINT(F("Content of "));
+    DEBUG_PRINT(path);
+    DEBUG_PRINTLN(F(":"));
+
+    while (file.available()) {
+        Serial.write(file.read());
+    }
+    DEBUG_PRINTLN();
+    file.close();
+}
+
+String rightString(const char *s, size_t length) {
+    String str;
+    str.reserve(length);
+    for (size_t i = 0; i < length; i++) str += s[i];
+    return str;
+}
+
+long long char2LL(char *str) {
+    long long result = 0;  // Initialize result
+    // Iterate through all characters of input string and update result
+    for (int i = 0; str[i] != '\0'; ++i)
+        result = result * 10 + str[i] - '0';
+    return result;
+}
+void subString(char *source, char *destination, int start_index, int end_index) {
+    int index;
+    for (index = 0; start_index < end_index; start_index++, index++)
+        destination[index] = (char)source[start_index];
+    destination[index] = '\0';
+}
+
+int getBase64Len(int len) {
+    return (len % 3) == 0 ? 4 * (len / 3) : 4 * ((len / 3) + 1);
+}
+int getCipherlength(int len) {
+    // int b64_len =  getBase64Len(len);
+    // return len + (len %16 == 0)? len : len+(16-len%16);
+    return len + 16 - len % 16;
+}
+
+unsigned int getFreeHeap() {
+    return ESP.getFreeHeap();
+}
+
+unsigned int getInitialFreeHeap() {
+    static unsigned int _heap = 0;
+    if (0 == _heap) {
+        _heap = getFreeHeap();
+    }
+    return _heap;
 }
