@@ -1,11 +1,12 @@
 
-#include <AsyncJson.h>
-#include <ESPAsyncTCP.h>
-#include <ESPAsyncWebServer.h>
+#include "wled.h"
+// #include <AsyncJson.h>
+// #include <ESPAsyncTCP.h>
+// #include <ESPAsyncWebServer.h>
 #include <Hash.h>
 #include <Ticker.h>
 #include <map>
-#include <vector>
+// #include <vector>
 // #include <FS.h>
 
 #if EMBEDDED_WEB
@@ -51,7 +52,7 @@ void postConfigurationUpdated() {
 
 // from is the source who is calling this function = web/mqtt/hclient
 // buffer is used in case of config coming from web. we need rto send some reply.
-void processConfig(JsonObject &config, const char *from, char *buffer, size_t bufferSize) {
+void processConfig(JsonObject config, const char *from, char *buffer, size_t bufferSize) {
     DEBUG_MSG_P(PSTR("[CONFIG] Parsing config data \n"));
     bool save = false;
     bool changedMQTT = false;
@@ -60,8 +61,7 @@ void processConfig(JsonObject &config, const char *from, char *buffer, size_t bu
     bool wifiSupplied = false;
     bool preConfigured = true;
     String apiKey = getSetting("apiKey", "");
-    DynamicJsonBuffer responseBuffer(512);
-    JsonObject &resRoot = responseBuffer.createObject();
+    StaticJsonDocument<1024> resRoot;
 
     if (!apiKey.length()) {
         preConfigured = false;
@@ -69,14 +69,13 @@ void processConfig(JsonObject &config, const char *from, char *buffer, size_t bu
 
     for (auto kv : config) {
         bool changed = false;
-        String key = kv.key;
+        String key = String(kv.key().c_str());
 
-        JsonVariant &value = kv.value;
+        JsonVariant value = kv.value();
 
         // KIOT Filter Keys here.
         // We cant let api update all the keys.
-        if (key.equals("filename"))
-            continue;
+        if (key.equals("filename")) continue;
 
         if (key.equals("aesKey") || key.equals("apiSecret") || key.equals("apiKey") || key.equals("devPin") || key.equals("httpPass")) {
             continue;
@@ -87,17 +86,17 @@ void processConfig(JsonObject &config, const char *from, char *buffer, size_t bu
 
         if (key.equals("wifi")) {
             wifiSupplied = true;
-            if (!value.is<JsonArray &>()) {
+            if (!value.is<JsonArray>()) {
                 // Throw Error
             } else {
-                if (configStoreWifi(value.as<JsonArray &>()))
-                    changed = true;
+                JsonArray arr = value.as<JsonArray>();
+                if (configStoreWifi(arr)) changed = true;
             }
         } else {
             // Store values for everything else other than wifi
-            if (value.is<JsonArray &>()) {
-                if (configStore(key, value.as<JsonArray &>()))
-                    changed = true;
+            if (value.is<JsonArray>()) {
+                JsonArray arr = value.as<JsonArray>();
+                if (configStore(key, arr)) changed = true;
             } else {
                 if (configStore(key, value.as<String>())) {
                     changed = true;
@@ -111,8 +110,7 @@ void processConfig(JsonObject &config, const char *from, char *buffer, size_t bu
             save = true;
             if (key.startsWith("mqtt") || key.equals("homeId"))
                 changedMQTT = true;
-            if (key.startsWith("wifi"))
-                changedWifi = true;
+            if (key.startsWith("wifi")) changedWifi = true;
             // Handling Sensors Settings
         }
     }
@@ -125,59 +123,38 @@ void processConfig(JsonObject &config, const char *from, char *buffer, size_t bu
             getApiKeyChecksum(buffer1);
             DEBUG_MSG_P(PSTR("[DEBUG] Length of buffer1 - %d \n"), strlen(buffer1));
 
-            resRoot["cs"] = responseBuffer.strdup(buffer1);
-            #if RELAY_PROVIDER == RELAY_PROVIDER_KU && (KU_SERIAL_SUPPORT)
+            resRoot["cs"] = buffer1;
+            #if (RELAY_PROVIDER == RELAY_PROVIDER_KU) && (KU_SERIAL_SUPPORT)
+                // TODO_S1 handle all the config according to your need or removed
                 resRoot["res_v"] = 2;
-                resRoot["rn"] = relayCount();
-                resRoot["dn"] = dimmerCount();
-                JsonArray &relayTypes = resRoot.createNestedArray("rT");
-                JsonArray &relayFeatures = resRoot.createNestedArray("rF");
-                JsonArray &dimmingSteps = resRoot.createNestedArray("dS");
-                DynamicJsonBuffer jsonBuffer(100);
-
-                #if FIXED_RELAY_TYPES
-                    JsonArray& relayTypeArray = jsonBuffer.parseArray(getSetting("relayTypes", RELAY_TYPES));
-                    for( const auto& value : relayTypeArray) {
-                        relayTypes.add(value.as<int>());
+                resRoot["rn"] = 5;//relayCount();
+                resRoot["dn"] = 0;//dimmerCount();
+                JsonArray relayType = resRoot.createNestedArray("rT");
+                JsonArray relayFeature = resRoot.createNestedArray("rF");
+                JsonArray dimmingSteps = resRoot.createNestedArray("dS");
+                uint8_t relay_type = 0;
+                // for(int i=0; i<relayCount(); i++) {
+                //     relay_type = getRelayType(i+1);
+                //     relayType.add(relay_type);
+                //     if(relay_type == 2) {
+                //         dimmingSteps.add(getDimmingSteps(i+1));
+                //     }
+                //     relayFeature.add(getRelayFeature(i+1));
+                // }
+                for(int i=0; i<5; i++) {
+                    relay_type = 1;//getRelayType(i+1);
+                    relayType.add(relay_type);
+                    if(relay_type == 2) {
+                        dimmingSteps.add(getDimmingSteps(i+1));
                     }
-                #else
-                    for(int i=0; i<relayCount(); i++) {
-                        uint8_t relay_type = getRelayType(i+1);
-                        relayTypes.add(relay_type);
-                    }
-                #endif
-
-                #if FIXED_DIMMING_STEPS
-                    JsonArray& dimmingStepsArray = jsonBuffer.parseArray(getSetting("dimmingSteps", DIMMING_STEPS));
-                    for( const auto& value : dimmingStepsArray) {
-                        dimmingSteps.add(value.as<int>());
-                    }
-                    resRoot["dn"] = DIMMER_COUNT;
-                #else
-                    for(int i=0; i<dimmerCount(); i++) {
-                        uint8_t relay_type = getRelayType(i+1);
-                        if(relay_type == 2) {
-                            dimmingSteps.add(getDimmingSteps(i+1));
-                        }
-                    }
-                #endif
-
-                #if FIXED_RELAY_FEATURES
-                    JsonArray& relayFeatureArray = jsonBuffer.parseArray(getSetting("relayFeatures", RELAY_FEATURES));
-                    for( const auto& value : relayFeatureArray) {
-                        relayFeatures.add(value.as<int>());
-                    }
-                #else
-                    for(int i=0; i<relayCount(); i++) {
-                        relayFeatures.add(getRelayFeature(i+1));
-                    }
-                #endif
-
+                    relayFeature.add(1);
+                }
                 resRoot["ir"] = IR_SUPPORT;
-                JsonArray &power = resRoot.createNestedArray("pwr");
+                JsonArray power = resRoot.createNestedArray("pwr");
                 #if POWER_HAS_ACTIVE
                     power.add("p");
                 #endif
+                power.add("p");
             #endif
         }
     }
@@ -190,7 +167,7 @@ void processConfig(JsonObject &config, const char *from, char *buffer, size_t bu
         restart = true;
     }
     if (restart) {
-        deferredReset(2000, CUSTOM_RESET_WEB);
+        // deferredReset(2000, CUSTOM_RESET_WEB); TODO_S1
     } else {
         if (save) {
             // Callbacks
@@ -198,13 +175,13 @@ void processConfig(JsonObject &config, const char *from, char *buffer, size_t bu
                 (_after_config_parse_callbacks[i])();
             }
 
-            if (changedMQTT)
-                deferred.once_ms(100, mqttReset);
+            if (changedMQTT) {} // WLED::reset(), mqttReset, doReboot = true, WLED::instance().reset() TODO_S1
+            // deferred.once_ms(100, mqttReset);
         }
     }
     String output;
     resRoot["message"] = "success";
-    resRoot.printTo(output);
+    serializeJson(resRoot, output);
     DEBUG_MSG_P(PSTR("%s \n"), output.c_str());
     snprintf(buffer, bufferSize, output.c_str());
 }
@@ -236,7 +213,7 @@ void getApiKeyChecksum(char *inpBuf) {
     base64_encode(inpBuf, (char *)buffer, strlen(buffer));
 }
 
-void getInfo(JsonObject &root) {
+void getInfo(JsonObject root) {
     root["app"] = APP_NAME;
     root["version"] = APP_VERSION;
     root["rev"] = APP_REVISION;
@@ -248,16 +225,17 @@ void getInfo(JsonObject &root) {
     root["mac"] = WiFi.macAddress();
     root["device"] = String(DEVICE);
     root["hostname"] = getSetting("hostname", HOSTNAME);
-    root["network"] = getNetwork();
-    root["deviceip"] = getIP();
-    root["heap"] = getFreeHeap();
-    root["uptime"] = getUptime();
-    root["rssi"] = WiFi.RSSI();
-    root["distance"] = wifiDistance(WiFi.RSSI());
-    root["mqttStatus"] = mqttConnected();
-    root["heap"] = getFreeHeap();
-    root["loadaverage"] = systemLoadAverage();
-#if ADC_MODE_VALUE == ADC_VCC
+    // TODO_S1 implement all the below functions
+    // root["network"] = getNetwork();
+    // root["deviceip"] = getIP();
+    // root["heap"] = getFreeHeap();
+    // root["uptime"] = getUptime();
+    // root["rssi"] = WiFi.RSSI();
+    // root["distance"] = wifiDistance(WiFi.RSSI());
+    // root["mqttStatus"] = mqttConnected();
+    // root["heap"] = getFreeHeap();
+    // root["loadaverage"] = systemLoadAverage();
+#if 0//ADC_MODE_VALUE == ADC_VCC
     root["vcc"] = ESP.getVcc();
 #endif
 #if NTP_SUPPORT
@@ -548,13 +526,12 @@ void _onAPIs(AsyncWebServerRequest *request) {
         return;
 
     String output;
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject &root = jsonBuffer.createObject();
+    StaticJsonDocument<1024> root;
     for (unsigned int i = 0; i < _apis.size(); i++) {
         DEBUG_MSG_P(PSTR("[DEBUG] Api Key - %s \n"), _apis[i].key);
         root[_apis[i].key] = _apis[i].url;
     }
-    root.printTo(output);
+    serializeJson(root, output);
     DEBUG_MSG_P(PSTR("[DEBUG] Output : %s \n"), output.c_str());
 
     AsyncWebServerResponse *response = request->beginResponse(200, "application/json", output);
@@ -562,17 +539,20 @@ void _onAPIs(AsyncWebServerRequest *request) {
     request->send(response);
 }
 
-void _processAction(String action, JsonObject &meta) {
+void _processAction(String action, JsonObject meta) {
     if (action.equals("reset")) {
-        deferredReset(1000, CUSTOM_RESET_RPC);
+        // TODO_S1
+        //deferredReset(1000, CUSTOM_RESET_RPC); call reset functuion TODO
     }
     else if (action.equals("reconnect")) {
         // Let the HTTP request return and disconnect after 100ms
-        deferred.once_ms(500, wifiDisconnect);
+        // TODO_S1
+        // deferred.once_ms(500, wifiDisconnect); // disconnect from wifi TODO
     }
 #if NOFUSS_SUPPORT
     else if (action.equals("checkForUpdate")) {
-        checkUpdateFlag = true;
+        // TODO_S1
+        // checkUpdateFlag = true; TODO from nofuss
     }
 #endif
     else if (action.equals("delDevice")) {
@@ -591,17 +571,17 @@ void _processAction(String action, JsonObject &meta) {
         settingsFactoryReset();
     } else if (action.equals("disconnect")) {
         deferred.once_ms(300, []() {
-            _wifiConfigure();
-            wifiDisconnect();
+            // _wifiConfigure(); TODO_S1
+            // wifiDisconnect();
         });
     } else if (action.equals("hotspot")) {
         deferred.once_ms(300, []() {
-            createLongAP(false);
+            // createLongAP(false); TODO_S1
         });
     } else if (action.equals("sb")) {
-        setReportSettings();
-        resetMqttBeatFlags(); // Required
-        setHeartBeatSchedule(millis());
+        // setReportSettings(); TODO_S1
+        // resetMqttBeatFlags(); // Required
+        // setHeartBeatSchedule(millis());
     } 
     else if (action.equals("snsrst")) {
         // Reset Sensors Configuration -
@@ -610,38 +590,14 @@ void _processAction(String action, JsonObject &meta) {
         // report Sensor Settings
     } else if(action.equals("wifihr")) {
          // WIFI Hard Reset
-        setWifiHardReset(true);
+        // setWifiHardReset(true); TODO_S1
     }
 #if SENSOR_SUPPORT
     else if (action.equals("report_sns")) {
         setReportSensors(true);
     } 
 #endif
-#if TUYA_SENSOR_TYPE == TY_SENSOR_GAS
-    else if (action.equals("snstst")) {
-        if (meta.containsKey("value")) {
-            bool val = meta["value"];
-            if (val) {
-                Tuya::tuyasendSelfCheckingtoMCU(true);
-            } 
-            else {
-                Tuya::tuyasendSelfCheckingtoMCU(false);
-            }       
-        }
-    }
-    else if (action.equals("snsmf")) {
-        if (meta.containsKey("value")) {
-            bool val = meta["value"];
-            if (val) {
-                Tuya::tuyasendMufflingtoMCU(true);
-            } 
-            else {
-                Tuya::tuyasendMufflingtoMCU(false);
-            }       
-        }
-    }    
-#endif
-#if SAVE_CRASH_DUMP
+#if 0//SAVE_CRASH_DUMP //TODO_S1
     else if (action.equals("crashd")) {
         sendCrashDump(true);
     } 
@@ -664,9 +620,9 @@ void _processAction(String action, JsonObject &meta) {
         if (meta.containsKey("m_CmdId")) {
             mode_DpId = meta["m_CmdId"];
         }
-        KUSetCustomSettingDP(mode_DpId, mode_type, mode_val);
+        // KUSetCustomSettingDP(mode_DpId, mode_type, mode_val); TODO_S1
     } else if (action.equals("custom_config")) {
-        setFetchCustomConfig(true);
+        // setFetchCustomConfig(true); TODO_S1
     }
     else {
         DEBUG_MSG_P(PSTR("[DEBUG] Unknown action in RPC"));
@@ -674,8 +630,8 @@ void _processAction(String action, JsonObject &meta) {
 }
 
 void _processAction(String action) {
-    StaticJsonBuffer<50> jsonBuffer;
-    JsonObject &blank = jsonBuffer.createObject();
+    StaticJsonDocument<50> root;
+    JsonObject blank = root.to<JsonObject>();
     _processAction(action, blank);
 }
 
@@ -725,8 +681,7 @@ void _onGetConfig(AsyncWebServerRequest *request) {
 
     // AsyncJsonResponse* response = new AsyncJsonResponse();
     DEBUG_MSG_P(PSTR("Free Heap 1 : %d"), getFreeHeap());
-    DynamicJsonBuffer jsonBuffer(500);
-    JsonObject &root = jsonBuffer.createObject();
+    DynamicJsonDocument root(512);
     root["app"] = APP_NAME;
     root["version"] = APP_VERSION;
     root["rev"] = APP_REVISION;
@@ -734,11 +689,11 @@ void _onGetConfig(AsyncWebServerRequest *request) {
     root["sensors_version"] = SENSORS_VERSION;
     root["device"] = DEVICE;
 
-    getSupportedConfigWeb(jsonBuffer, root);
+    getSupportedConfigWeb(root);
     // DEBUG_MSG_P(PSTR("Free Heap 2 : %d"), getFreeHeap());
 
     String output;
-    root.printTo(output);
+    serializeJson(root, output);
 
     // DEBUG_MSG_P(PSTR("Free Heap 3 : %d"), getFreeHeap());
 
@@ -764,12 +719,12 @@ void _onGetConfigAll(AsyncWebServerRequest *request) {
         return;
 
     AsyncJsonResponse *response = new AsyncJsonResponse();
-    JsonObject &root = response->getRoot();
+    JsonObject root = response->getRoot();
 
     root["app"] = APP_NAME;
     root["version"] = APP_VERSION;
     root["rev"] = APP_REVISION;
-    settingsGetJson(root);
+    // settingsGetJson(root); TODO_S1
     response->setLength();
     request->send(response);
 }
@@ -804,12 +759,12 @@ bool configStore(String key, String value) {
     return false;
 }
 
-bool configStore(String key, JsonArray &value) {
+bool configStore(String key, JsonArray value) {
     bool changed = false;
 
     unsigned char index = 0;
-    for (auto element : value) {
-        if (configStore(key + index, element.as<String>()))
+    for (JsonVariant element : value) {
+        if (configStore(key + String(index), element.as<String>()))
             changed = true;
         index++;
     }
@@ -824,19 +779,19 @@ bool configStore(String key, JsonArray &value) {
     return changed;
 }
 
-bool configStoreWifiOld(JsonArray &wifiArray) {
+bool configStoreWifiOld(JsonArray wifiArray) {
     unsigned char index = 0;
     bool changed = false;
     // DEBUG_MSG_P(PSTR("[DEBUG] Reached Here \n"));
-    for (auto element : wifiArray) {
-        JsonObject &wifiObj = element.as<JsonObject>();
+    for (JsonVariant element : wifiArray) {
+        JsonObject wifiObj = element.as<JsonObject>();
 
-        String ssid = wifiObj["ssid"];
-        String pass = wifiObj["pass"];
+        String ssid = wifiObj["ssid"].as<String>();
+        String pass = wifiObj["pass"].as<String>();
         if (configStore(String("ssid") + index, ssid))
             changed = true;
         if (!pass.equals("null")) {
-            DEBUG_MSG_P(PSTR("[DEBUG] pass - for the network recived is - %s \n "), pass.c_str());
+            DEBUG_MSG_P(PSTR("[DEBUG] pass - for the network received is - %s \n "), pass.c_str());
             if (configStore(String("pass") + index, pass))
                 changed = true;
         }
@@ -854,7 +809,7 @@ bool configStoreWifiOld(JsonArray &wifiArray) {
     return changed;
 }
 
-bool configStoreWifi(JsonArray &wifiArray) {
+bool configStoreWifi(JsonArray wifiArray) {
     unsigned char index = 0;
     bool changed = false;
     // DEBUG_MSG_P(PSTR("[DEBUG] Reached Here \n"));
@@ -862,7 +817,7 @@ bool configStoreWifi(JsonArray &wifiArray) {
     std::map<std::string, std::string> _wifis;
     for (uint8_t j = 0; j < WIFI_MAX_NETWORKS; j++) {
         String ssid = getSetting("ssid", j, NULL);
-        if (!ssid) {
+        if (ssid.isEmpty()) {
             break;
         }
         _wifis[ssid.c_str()] = getSetting("pass", j, NULL).c_str();
@@ -878,11 +833,11 @@ bool configStoreWifi(JsonArray &wifiArray) {
     }
     DEBUG_MSG_P(PSTR("[DEBUG] Found the key temp: %d , value: %s\n"), _wifis.find("temp")!=_wifis.end(), &_wifis["temp"][0]);
      */
+    for (JsonVariant element : wifiArray) {
+        JsonObject wifiObj = element.as<JsonObject>();
+        String ssid = wifiObj["ssid"].as<String>();
+        String pass = wifiObj["pass"].as<String>();
 
-    for (auto element : wifiArray) {
-        JsonObject &wifiObj = element.as<JsonObject>();
-        String ssid = wifiObj["ssid"];
-        String pass = wifiObj["pass"];
         // Decrypt pass -
         char buffer[pass.length()];
         memset(buffer, 0, sizeof(buffer));
@@ -942,20 +897,24 @@ void _onPostConfig(AsyncWebServerRequest *request) {
     short int params = request->params();
     if (params > 0 && request->getParam("body", true, false)) {
         // Serial.printf("_POST[BODY]: %s\n", request->getParam("body", true, false)->value().c_str());
-        DynamicJsonBuffer jsonBuffer;
+        DynamicJsonDocument root(1024);
 
-        JsonObject &root = jsonBuffer.parseObject(
+        DeserializationError error = deserializeJson(
+            root,
             (char *)request->getParam("body", true, false)->value().c_str());
-        if (!root.success()) {
+        if (error) {
             DEBUG_MSG_P(PSTR("[DEBUG] Error parsing data\n"));
             responseBadRequest(request, "Invalid Body");
             // request->send(400, "application/json", "{\"message\":\"Invalid Body\"}");
             return;
         } else {
             if ((root.containsKey("config")) || root.containsKey("action")) {
+                String message = "";
+                serializeJson(root, message);
+                DEBUG_MSG_P(PSTR("[DEBUG] Root Message : %s\n"), message.c_str());
                 if (root.containsKey("config")) {
-                    JsonObject &config = root["config"];
-                    if (!config.success()) {
+                    JsonObject config = root["config"];
+                    if (!config) {
                         responseBadRequest(request, "Invalid Body");
                     } else {
                         char responseBuffer[512] = "";
@@ -983,7 +942,7 @@ void _onPostConfig(AsyncWebServerRequest *request) {
                         deferred.once_ms(300, wifiDisconnect);
                     } */
                     if (root.containsKey("meta")) {
-                        JsonObject& meta = root["meta"];
+                        JsonObject meta = root["meta"];
                         _processAction(action, meta);
                     } else {
                         _processAction(action);
@@ -1011,11 +970,11 @@ void _onGetInfo(AsyncWebServerRequest *request) {
     if (!_authAPI(request))
         return;
 
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject &root = jsonBuffer.createObject();
+    DynamicJsonDocument duc(512);
+    JsonObject root = duc.to<JsonObject>();
     getInfo(root);
     String output;
-    root.printTo(output);
+    serializeJson(root, output);
     AsyncWebServerResponse *response = request->beginResponse(200, "application/json", output);
     response->addHeader("Access-Control-Allow-Origin", "*");
     request->send(response);
@@ -1025,8 +984,7 @@ void _onGetInfo(AsyncWebServerRequest *request) {
 void _onPing(AsyncWebServerRequest *request) {
     AsyncResponseStream *response = request->beginResponseStream("application/json");
     response->addHeader("Access-Control-Allow-Origin", "*");
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject &root = jsonBuffer.createObject();
+    DynamicJsonDocument root(256);
     root["app"] = APP_NAME;
     root["version"] = APP_VERSION;
     root["rev"] = APP_REVISION;
@@ -1036,11 +994,11 @@ void _onPing(AsyncWebServerRequest *request) {
     root["cv"] = SETTINGS_VERSION;
     root["ssv"] = SENSORS_VERSION;
 
-    root.printTo(*response);
+    serializeJson(root, *response);
     request->send(response);
 }
 
-#if EMBEDDED_WEB
+#if 0//EMBEDDED_WEB TODO_S1
 void _onHome(AsyncWebServerRequest *request) {
     webLogRequest(request);
 
@@ -1119,8 +1077,8 @@ void _onUpgrade(AsyncWebServerRequest *request) {
     AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", Update.hasError() ? "FAIL" : "Success");
     response->addHeader("Connection", "close");
     if (!Update.hasError()) {
-        eepromRotate(true);
-        deferredReset(1000, CUSTOM_RESET_UPGRADE);
+        // eepromRotate(true); TODO_S1
+        // deferredReset(1000, CUSTOM_RESET_UPGRADE); TODO_S1
     }
     request->send(response);
 }
@@ -1136,10 +1094,10 @@ void _onUpgradeData(AsyncWebServerRequest *request, String filename, size_t inde
 
     if (!index) {
         // Disabling EEPROM rotation to prevent writing to EEPROM after the upgrade
-        eepromRotate(false);
+        // eepromRotate(false); TODO_S1
 
         DEBUG_MSG_P(PSTR("[UPGRADE] Start: %s\n"), filename.c_str());
-        eepromBackup(0);
+        // eepromBackup(0);TODO_S1
         Update.runAsync(true);
         if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)) {
             Update.printError(Serial);
@@ -1273,3 +1231,135 @@ void _onRPC(AsyncWebServerRequest *request)
 }
 
 */
+
+// TODO_S1 following functions taken from wifi.ino think where to put all these functions.
+
+void _onWifiScanServer(AsyncWebServerRequest* request) {
+    DEBUG_MSG_P(PSTR("[WEB] Request for scan wifi networks"));
+    // No need for authenticating this api.
+    // if (!_authAPI(request)) return;
+
+    String wifiBuffer;
+    DynamicJsonDocument root(1024);
+    _wifiScan(root);
+    serializeJson(root, wifiBuffer);
+
+    AsyncWebServerResponse* response =
+        request->beginResponse(200, "application/json", wifiBuffer);
+    response->addHeader("Access-Control-Allow-Origin", "*");
+    request->send(response);
+
+    // Serial.println(wifiBuffer);
+    // DEBUG_MSG_P(PSTR("+OK\n"));
+}
+
+void _wifiScan(DynamicJsonDocument& root) {
+    DEBUG_MSG_P(PSTR("[WIFI] Start scanning\n"));
+
+    /* #if WEB_SUPPORT
+        String output;
+    #endif */
+
+    int result = WiFi.scanComplete();
+    JsonArray networks = root.createNestedArray("networks");
+    root["error"] = NULL;
+
+    if (result == -2) {
+        DEBUG_MSG_P(PSTR("[WIFI] Scan failed\n"));
+        root["error"] = F("Scan failed");
+        WiFi.scanNetworks(true);
+    } else if (result == 0) {
+        DEBUG_MSG_P(PSTR("[WIFI] No networks found\n"));
+        root["error"] = F("No networks found");
+        WiFi.scanNetworks(true);
+    } else if (result >= 0xFA) {
+        DEBUG_MSG_P(PSTR("[WIFI] Scan failed\n"));
+        root["error"] = F("Please Re Scan");
+        WiFi.scanNetworks(true);
+    } else {
+        DEBUG_MSG_P(PSTR("[WIFI] %d networks found:\n"), result);
+
+        // Populate defined networks with scan data
+        for (int8_t i = 0; i < result && i < WIFI_MAX_NETOWRK_DISCOVERY; ++i) {
+            String ssid_scan;
+            int32_t rssi_scan;
+            uint8_t sec_scan;
+            uint8_t* BSSID_scan;
+            int32_t chan_scan;
+            // char buffer[128];
+            char bssid[22];
+            bool hidden = false;
+
+            WiFi.getNetworkInfo(i, ssid_scan, sec_scan, rssi_scan, BSSID_scan,
+                                chan_scan, hidden);
+
+            snprintf_P(bssid, sizeof(bssid),
+                       PSTR("%02X:%02X:%02X:%02X:%02X:%02X"), BSSID_scan[0],
+                       BSSID_scan[1], BSSID_scan[2], BSSID_scan[3],
+                       BSSID_scan[4], BSSID_scan[5]);
+            /*
+            snprintf_P(buffer, sizeof(buffer),
+                PSTR("BSSID: %02X:%02X:%02X:%02X:%02X:%02X SEC: %s RSSI: %3d CH:
+            %2d SSID: %s"), BSSID_scan[1], BSSID_scan[2], BSSID_scan[3],
+            BSSID_scan[4], BSSID_scan[5], BSSID_scan[6], (sec_scan !=
+            ENC_TYPE_NONE ? "YES" : "NO "), rssi_scan, chan_scan, (char *)
+            ssid_scan.c_str()
+            );
+            */
+            StaticJsonDocument<256> temp;
+            JsonObject network = temp.to<JsonObject>();
+            network["bssid"] = bssid;
+            network["rssi"] = rssi_scan;
+            network["ssid"] = ssid_scan;
+            // network["sec"] = sec_scan != ENC_TYPE_NONE ? 1 : 0;
+            networks.add(network);
+
+            // #if WEB_SUPPORT
+            //     if (client_id > 0) output = output + String(buffer) +
+            //     String("<br />");
+            // #endif
+        }
+
+        WiFi.scanDelete();
+        // if(WiFi.scanComplete() == -2){
+        WiFi.scanNetworks(true);
+        // }
+    }
+
+    // if (result == WIFI_SCAN_FAILED) {
+    //     DEBUG_MSG_P(PSTR("[WIFI] Scan failed\n"));
+    //     root["error"] = F("Scan failed");
+    // } else if (result == 0) {
+    //     DEBUG_MSG_P(PSTR("[WIFI] No networks found\n"));
+    //     root["error"] = F("No networks found");
+    // } else {
+
+    // }
+
+    // #if WEB_SUPPORT
+    //     if (client_id > 0) {
+    //         output = String("{\"scanResult\": \"") + output + String("\"}");
+    //         wsSend(client_id, output.c_str());
+    //     }
+    // #endif
+
+    // WiFi.scanDelete();
+}
+
+void _wifiScanFix() {
+    int result = WiFi.scanComplete();
+    if (result == -2 || result == 0) {
+        DEBUG_MSG_P(PSTR("[WIFI] AP Scan failed, scan result : %d \n"), result);
+        // WiFi.scanDelete();
+        WiFi.scanNetworks(true);
+    }
+
+    // else{
+
+    //     WiFi.scanDelete();
+    //     if(WiFi.scanComplete() == -2){
+    //         WiFi.scanNetworks();
+    //     }
+    // }
+}
+
