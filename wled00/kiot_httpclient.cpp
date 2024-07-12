@@ -1,5 +1,8 @@
+#define HTTP_CLIENT_SUPPORT 1 // TODO_S1 Enable in conditionals.h if HTTP_CONF_SUPPORT is enabled
+#define HTTP_CONF_SUPPORT 1 // TODO_S1 Enable in arduino.h
 #if HTTP_CLIENT_SUPPORT
-#include <ArduinoJson.h>
+// #include <ArduinoJson.h>
+#include "wled.h"
 #include <ESP8266HTTPClient.h>
 unsigned long last_called = 0;
 #if HTTP_CONF_SUPPORT
@@ -10,6 +13,7 @@ bool fetchRPCaction = false;
 bool fetchCustomConfig = false;
 #endif
 
+String EMPTY_STRING = "";
 
 String _exractParam(String& authReq, const String& param, const char delimit) {
     int _begin = authReq.indexOf(param);
@@ -54,8 +58,9 @@ String _getDigestAuth(String& authReq, const String& username, const String& pas
 
 String _httpGetRaw(String url, String query) {
     HTTPClient http;
+    WiFiClient client;
     // DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Url : %s \n"), (url + query).c_str());
-    http.begin(getSetting("httpServer", HTTPSERVER_HOST) + url + query);
+    http.begin(client, (getSetting("httpServer", HTTPSERVER_HOST) + url + query));
     int httpCode = http.GET();
     if (httpCode > 0) {
         // DEBUG_MSG_P(PSTR("[HTTP_CLIENT] GET ... code : %d\n"), httpCode);
@@ -69,7 +74,7 @@ String _httpGetRaw(String url, String query) {
         }
     } else {
         // DEBUG_MSG_P(PSTR("[HTTP] GET... failed, error: %s\n"), http.errorToString(httpCode).c_str());
-        sendGratuitousARP();
+        // sendGratuitousARP(); TODO_S1
     }
     return "";
 }
@@ -94,8 +99,9 @@ String _httpGetRaw(String url, String query, bool auth) {
     }
 
     HTTPClient http;
+    WiFiClient client;
     DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Url : %s \n"), (url + query).c_str());
-    http.begin(getSetting("httpServer", HTTPSERVER_HOST) + url + query);
+    http.begin(client, (getSetting("httpServer", HTTPSERVER_HOST) + url + query));
     const char* keys[] = {"WWW-Authenticate"};
     http.collectHeaders(keys, 1);
 
@@ -108,7 +114,7 @@ String _httpGetRaw(String url, String query, bool auth) {
         String authorization = _getDigestAuth(authReq, getSetting("identifier"), getSetting("httpPass"), url + query, 1);
 
         http.end();
-        http.begin(getSetting("httpServer", HTTPSERVER_HOST) + url + query);
+        http.begin(client, getSetting("httpServer", HTTPSERVER_HOST) + url + query);
         http.addHeader("Authorization", authorization);
         int httpCode = http.GET();
         if (httpCode == HTTP_CODE_OK) {
@@ -128,8 +134,9 @@ String _httpGetRaw(String url, String query, bool auth) {
 
 String _httpPostRaw(String url, char* body, size_t size) {
     HTTPClient http;
-    DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Url : %s \n"), (url).c_str());
-    http.begin(getSetting("httpServer", HTTPSERVER_HOST) + url);
+    WiFiClient client;
+    DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Url : %s \n"), (url).c_str());   
+    http.begin(client, (getSetting("httpServer", HTTPSERVER_HOST) + url));
     http.addHeader("Content-Type", "application/json");
 
     int httpCode = http.POST((uint8_t*)body, size);
@@ -146,7 +153,7 @@ String _httpPostRaw(String url, char* body, size_t size) {
         }
     } else {
         DEBUG_MSG_P(PSTR("[HTTP] GET... failed, error: %s\n"), http.errorToString(httpCode).c_str());
-        sendGratuitousARP();
+        // sendGratuitousARP(); TODO_S1
     }
     return "";
 }
@@ -154,7 +161,7 @@ String _httpPostRaw(String url, char* body, size_t size) {
 #if HTTP_CONF_SUPPORT
 bool getConfigFromServer(const char* action) {
     unsigned long static last_try = 0;
-    if (!wifiConnected()) {
+    if (!WLED_CONNECTED) {
         return false;
     }
     if (millis() - last_try < HTTP_CONF_RETRY_GAP) {
@@ -188,19 +195,20 @@ bool getConfigFromServer(const char* action) {
             return false;
         }
         DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Payload: %s\n"), payload.c_str());
-        DynamicJsonBuffer jsonBuffer(400);
-        JsonObject& root = jsonBuffer.parseObject(payload);
+        DynamicJsonDocument root(512);
+        deserializeJson(root, payload);
         char resp[200] = "";
         decryptMsg(root["msg"], resp, strlen(root["msg"]), root["iv"]);
         DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Decrypted Payload: %s\n"), resp);
-        DynamicJsonBuffer jsonBuffer2(400);
-        JsonObject& root2 = jsonBuffer2.parseObject(resp);
-        if (!root2.success()) {
+        DynamicJsonDocument root2(512);
+        DeserializationError error = deserializeJson(root2, resp);
+        if (error) {
             DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Parsing Server Response failed, Invalid JSON \n"));
             return false;
         }
         char buffer[100] = "";
-        processConfig(root2, "hclient", buffer, 100);
+        JsonObject root2Obj = root2.as<JsonObject>();
+        processConfig(root2Obj, "hclient", buffer, 100);
         // This delay is required - other wise mqtt will connect right now itself without first disconnecting
         // due to this code in processConfig -
         //  //////  if (changedMQTT)
@@ -208,24 +216,25 @@ bool getConfigFromServer(const char* action) {
         delay(200);
         return true;
     } else if (strcmp(action, "customConfig") == 0) {
-        char queryBuffer[100] = "";
-        snprintf_P(queryBuffer, sizeof(queryBuffer) - 1, "/%s", action);
-        String finalURL = getSetting("httpServer", HTTPSERVER_HOST) + getSetting("configURL", SERVER_CONFIG_URL);
-        DEBUG_MSG_P(PSTR("\n[GET_URL] %s \n"),(finalURL).c_str());
-        String payload = _httpGetRaw(getSetting("configURL", SERVER_CONFIG_URL), String(queryBuffer), true);
-        last_try = millis();
-        if (payload.length() < 1) {
-            return false;
-        }
-        DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Custom Config Payload: %s\n"), payload.c_str());
-        DynamicJsonBuffer jsonBuffer(400);
-        JsonObject& root = jsonBuffer.parseObject(payload);
-        if (!root.success()) {
-            DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Parsing Server Response failed, Invalid JSON \n"));
-            return false;
-        }
-        storeCustomConfig(root);
-        delay(200);
+        // TODO_S1 : Implement this if required
+        // char queryBuffer[100] = "";
+        // snprintf_P(queryBuffer, sizeof(queryBuffer) - 1, "/%s", action);
+        // String finalURL = getSetting("httpServer", HTTPSERVER_HOST) + getSetting("configURL", SERVER_CONFIG_URL);
+        // DEBUG_MSG_P(PSTR("\n[GET_URL] %s \n"),(finalURL).c_str());
+        // String payload = _httpGetRaw(getSetting("configURL", SERVER_CONFIG_URL), String(queryBuffer), true);
+        // last_try = millis();
+        // if (payload.length() < 1) {
+        //     return false;
+        // }
+        // DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Custom Config Payload: %s\n"), payload.c_str());
+        // DynamicJsonBuffer jsonBuffer(400);
+        // JsonObject& root = jsonBuffer.parseObject(payload);
+        // if (!root.success()) {
+        //     DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Parsing Server Response failed, Invalid JSON \n"));
+        //     return false;
+        // }
+        // // storeCustomConfig(root); TODO KU_SERIAL
+        // delay(200);
         return true;
     } else {
         return false;
@@ -234,7 +243,7 @@ bool getConfigFromServer(const char* action) {
 
 bool askRPCFromServer(){
         static unsigned long last_try = 0;
-        if(!wifiConnected()){
+        if(!WLED_CONNECTED){
             return false;
         }
         if(millis() - last_try < (int)HTTP_FETCH_RPC_RETRY_GAP){
@@ -248,21 +257,21 @@ bool askRPCFromServer(){
             return false;
         }
         DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Payload: %s\n"), payload.c_str());
-        DynamicJsonBuffer jsonBuffer(400);
-        JsonObject& root = jsonBuffer.parseObject(payload);
+        DynamicJsonDocument root(512);
+        deserializeJson(root, payload);
         char resp[200] = "";
         decryptMsg(root["msg"], resp, strlen(root["msg"]), root["iv"]);
         DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Decrypted Payload: %s\n"), resp);
-        DynamicJsonBuffer jsonBuffer2(200);
-        JsonObject& root2 = jsonBuffer2.parseObject(resp);
-        if (!root2.success()) {
+        DynamicJsonDocument root2(512);
+        DeserializationError error = deserializeJson(root2, resp);
+        if (error) {
             DEBUG_MSG_P(PSTR("[HTTP_CLIENT] Parsing Server Response failed, Invalid JSON \n"));
             return true;
         }
         const char * action = root2["action"];
         if(action){
             if(root.containsKey("meta")){
-                JsonObject& meta = root["meta"];
+                JsonObject meta = root["meta"];
                 _processAction(action, meta);
             }else{
                 _processAction(action);
@@ -311,7 +320,7 @@ void setFetchCustomConfig(bool val){
 #endif
 
 void httpClientSetup() {
-    loopRegister(httpClientLoop);
+    // loopRegister(httpClientLoop); TODO_S1
 }
 
 void httpClientLoop() {
