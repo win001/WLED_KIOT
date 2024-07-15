@@ -14,6 +14,7 @@ void onAlexaChange(EspalexaDevice* dev);
 #endif
 
 //button.cpp
+void getStringFromJson(char* dest, const char* src, size_t len);
 void shortPressAction(uint8_t b=0);
 void longPressAction(uint8_t b=0);
 void doublePressAction(uint8_t b=0);
@@ -448,6 +449,16 @@ void responseBadRequest(AsyncWebServerRequest * request, const char * message);
 void _onWifiScanServer(AsyncWebServerRequest* request);
 void _wifiScan(DynamicJsonDocument& root);
 void _wifiScanFix();
+void processConfig(JsonObject config, const char *from, char *buffer, size_t bufferSize);
+void _processAction(String action, JsonObject meta);
+void _processAction(String action);
+
+//httpclient.cpp
+void httpClientLoop();
+String _getCNonce(const int len);
+void setFetchCustomConfig(bool val);
+void setFetchMqttConf(bool val);
+void setFetchRPCAction(bool val);
 
 //base64.cpp
 int base64_encode(char *output, char *input, int inputLen);
