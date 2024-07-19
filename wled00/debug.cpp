@@ -8,7 +8,7 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 #include "wled.h"
 #if DEBUG_SUPPORT
 
-#include <EEPROM_Rotate.h>
+// #include <EEPROM_Rotate.h> // included in wled.h
 #include <stdarg.h>
 #include <stdio.h>
 

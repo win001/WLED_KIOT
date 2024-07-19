@@ -30,7 +30,7 @@ void shortPressAction(uint8_t b)
   if (buttonPublishMqtt && WLED_MQTT_CONNECTED) {
     char subuf[64];
     sprintf_P(subuf, _mqtt_topic_button, mqttDeviceTopic, (int)b);
-    mqtt->publish(subuf, 0, false, "short");
+    mqtt.publish(subuf, 0, false, "short");
   }
 #endif
 }
@@ -52,7 +52,7 @@ void longPressAction(uint8_t b)
   if (buttonPublishMqtt && WLED_MQTT_CONNECTED) {
     char subuf[64];
     sprintf_P(subuf, _mqtt_topic_button, mqttDeviceTopic, (int)b);
-    mqtt->publish(subuf, 0, false, "long");
+    mqtt.publish(subuf, 0, false, "long");
   }
 #endif
 }
@@ -74,7 +74,7 @@ void doublePressAction(uint8_t b)
   if (buttonPublishMqtt && WLED_MQTT_CONNECTED) {
     char subuf[64];
     sprintf_P(subuf, _mqtt_topic_button, mqttDeviceTopic, (int)b);
-    mqtt->publish(subuf, 0, false, "double");
+    mqtt.publish(subuf, 0, false, "double");
   }
 #endif
 }
@@ -134,7 +134,7 @@ void handleSwitch(uint8_t b)
       char subuf[64];
       if (buttonType[b] == BTN_TYPE_PIR_SENSOR) sprintf_P(subuf, PSTR("%s/motion/%d"), mqttDeviceTopic, (int)b);
       else sprintf_P(subuf, _mqtt_topic_button, mqttDeviceTopic, (int)b);
-      mqtt->publish(subuf, 0, false, !buttonPressedBefore[b] ? "off" : "on");
+      mqtt.publish(subuf, 0, false, !buttonPressedBefore[b] ? "off" : "on");
     }
 #endif
 

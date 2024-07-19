@@ -181,7 +181,7 @@ void handleTransitions()
   //handle still pending interface update
   updateInterfaces(interfaceUpdateCallMode);
 #ifndef WLED_DISABLE_MQTT
-  if (doPublishMqtt) publishMqtt();
+  // if (doPublishMqtt) publishMqtt(); // TODO_S1 now use kiot mqtt publish function
 #endif
 
   if (transitionActive && strip.getTransition() > 0) {

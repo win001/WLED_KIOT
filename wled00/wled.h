@@ -21,12 +21,21 @@
 // Alternatively, with platformio pass your chosen flags to your custom build target in platformio_override.ini
 
 // You are required to disable over-the-air updates:
-//#define WLED_DISABLE_OTA         // saves 14kb
+#define WLED_DISABLE_OTA         // saves 14kb
+// #define WLED_DISABLE_MQTT
+#define WLED_DISABLE_ADALIGHT
+#define WLED_DISABLE_WEBSOCKETS
+#define WLED_DISABLE_IMPROV_WIFISCAN
+#define WLED_DISABLE_ESPNOW
+#define WLED_DISABLE_WEBSERVER
 
+#ifndef WLED_DISABLE_WEBSERVER
+  #define WLED_ENABLE_WEBSERVER
+#endif
 // You can choose some of these features to disable:
-//#define WLED_DISABLE_ALEXA       // saves 11kb
-//#define WLED_DISABLE_HUESYNC     // saves 4kb
-//#define WLED_DISABLE_INFRARED    // saves 12kb, there is no pin left for this on ESP8266-01
+#define WLED_DISABLE_ALEXA       // saves 11kb
+#define WLED_DISABLE_HUESYNC     // saves 4kb
+#define WLED_DISABLE_INFRARED    // saves 12kb, there is no pin left for this on ESP8266-01
 #ifndef WLED_DISABLE_MQTT
   #define WLED_ENABLE_MQTT         // saves 12kb
 #endif
@@ -49,8 +58,15 @@
 #define WLED_ENABLE_FS_EDITOR      // enable /edit page for editing FS content. Will also be disabled with OTA lock
 
 // to toggle usb serial debug (un)comment the following line
-//#define WLED_DEBUG
+#define WLED_DEBUG
+#define DEBUG_SUPPORT 1
+#define DEBUG_SERIAL_SUPPORT 1
+#define DEBUG_PORT Serial
 
+// kiot general macros
+#include "kiot_default.h"
+#include "kiot_general.h"
+#include "kiot_version.h"
 // filesystem specific debugging
 //#define WLED_DEBUG_FS
 
@@ -142,7 +158,9 @@
 
 #include "src/dependencies/e131/ESPAsyncE131.h"
 #ifdef WLED_ENABLE_MQTT
-#include "src/dependencies/async-mqtt-client/AsyncMqttClient.h"
+// #include "src/dependencies/async-mqtt-client/AsyncMqttClient.h"
+// TODO_S2
+#include <AsyncMqttClient.h>
 #endif
 
 #define ARDUINOJSON_DECODE_UNICODE 0
@@ -296,6 +314,57 @@ WLED_GLOBAL int8_t irPin _INIT(IRPIN);
 #endif
 
 //WLED_GLOBAL byte presetToApply _INIT(0);
+//-------------------------------------------- START KIOT GLOBAL VAR -------------------------------------//
+WLED_GLOBAL bool mqtt_firstbeat_reported _INIT(false);
+WLED_GLOBAL bool wifi_connected_beat _INIT(false);
+WLED_GLOBAL bool reset_reason_reported _INIT(false);
+WLED_GLOBAL unsigned long nowstamp _INIT(0);
+
+
+WLED_GLOBAL char pwRP[33] _INIT("0.00");
+WLED_GLOBAL char pwRC[33] _INIT("0.00");
+WLED_GLOBAL char pwRV[33]  _INIT("0.00");
+WLED_GLOBAL byte aesKey[16] _INIT("");
+WLED_GLOBAL char apiSecret[33]  _INIT("67614cf33ca799d9484c");
+WLED_GLOBAL char httpPass[33]  _INIT("92e73a58a8");
+WLED_GLOBAL char identifier[33] _INIT("5ccf7f391f1d");
+WLED_GLOBAL char hostname[33] _INIT("pattern_light_5ccf7f391f1d");
+WLED_GLOBAL char sv[33]  _INIT("2");
+WLED_GLOBAL char ssv[33]  _INIT("2");
+WLED_GLOBAL char homeId[33]  _INIT("657db4f6165242639a2abf4f");
+WLED_GLOBAL char httpServer[33]  _INIT("http://device.kiot.io");
+WLED_GLOBAL char configURL[33]  _INIT("/deviceroutes/config");
+WLED_GLOBAL char ssid0[33]  _INIT("DEVIOT");
+WLED_GLOBAL char pass0[33]  _INIT("Deviot@321");
+WLED_GLOBAL char apiKey[33]  _INIT("9cbd20553025e84a4dfe");
+// WLED_GLOBAL char mqttUser[33]  _INIT("5ccf7f391f1d");
+// WLED_GLOBAL char mqttPassword[33]  _INIT("oC6IeSsfwYuLINcAzRRD");
+// WLED_GLOBAL char mqttPort[33]  _INIT("1885");
+// WLED_GLOBAL char mqttServer[33]  _INIT("mqtt.kiot.io");
+WLED_GLOBAL char apiEnabled[33]  _INIT("1");
+WLED_GLOBAL char plpwr[33]  _INIT("1");
+WLED_GLOBAL char RCNTRR[33]  _INIT("0");
+WLED_GLOBAL char LSW[33]  _INIT("0");
+
+// WLED_GLOBAL String EMPTY_STRING _INIT(""); 
+// #ifdef DEBUG_SUPPORT
+// #define DEBUG_MSG(...) debugSend(__VA_ARGS__)
+// #define DEBUG_MSG_P(...) debugSend_P(__VA_ARGS__)
+// #define SERIAL_SEND_P(...) serialSend_P(__VA_ARGS__)
+// #define SERIAL_SEND(...) serialSend(__VA_ARGS__)
+// #endif
+
+// #ifndef SERIAL_SEND
+// #define SERIAL_SEND(...)
+// #define SERIAL_SEND_P(...)
+// #endif
+
+// #ifndef DEBUG_MSG
+// #define DEBUG_MSG(...)
+// #define DEBUG_MSG_P(...)
+// #endif
+//-------------------------------------------- END KIOT GLOBAL VAR -------------------------------------//
+
 
 WLED_GLOBAL char ntpServerName[33] _INIT("0.wled.pool.ntp.org");   // NTP server to use
 
@@ -303,7 +372,7 @@ WLED_GLOBAL char ntpServerName[33] _INIT("0.wled.pool.ntp.org");   // NTP server
 WLED_GLOBAL char clientSSID[33] _INIT(CLIENT_SSID);
 WLED_GLOBAL char clientPass[65] _INIT(CLIENT_PASS);
 WLED_GLOBAL char cmDNS[33] _INIT(MDNS_NAME);                       // mDNS address (*.local, replaced by wledXXXXXX if default is used)
-WLED_GLOBAL char apSSID[33] _INIT("");                             // AP off by default (unless setup)
+WLED_GLOBAL char apSSID[33] _INIT(DEFAULT_AP_SSID);                // AP off by default (unless setup)
 WLED_GLOBAL byte apChannel _INIT(1);                               // 2.4GHz WiFi AP channel (1-13)
 WLED_GLOBAL byte apHide    _INIT(0);                               // hidden AP SSID
 WLED_GLOBAL byte apBehavior _INIT(AP_BEHAVIOR_BOOT_NO_CONN);       // access point opens when no connection after boot by default
@@ -434,18 +503,19 @@ WLED_GLOBAL unsigned long lastMqttReconnectAttempt _INIT(0);  // used for other 
   #ifndef MQTT_MAX_SERVER_LEN
     #define MQTT_MAX_SERVER_LEN 32
   #endif
-WLED_GLOBAL AsyncMqttClient *mqtt _INIT(NULL);
-WLED_GLOBAL bool mqttEnabled _INIT(false);
-WLED_GLOBAL char mqttStatusTopic[40] _INIT("");            // this must be global because of async handlers
+// WLED_GLOBAL AsyncMqttClient *mqtt _INIT(NULL); TODO_S1
+WLED_GLOBAL AsyncMqttClient mqtt;
+WLED_GLOBAL bool mqttEnabled _INIT(true);
+WLED_GLOBAL char mqttStatusTopic[75] _INIT("");            // this must be global because of async handlers
 WLED_GLOBAL char mqttDeviceTopic[MQTT_MAX_TOPIC_LEN+1] _INIT("");         // main MQTT topic (individual per device, default is wled/mac)
-WLED_GLOBAL char mqttGroupTopic[MQTT_MAX_TOPIC_LEN+1]  _INIT("wled/all"); // second MQTT topic (for example to group devices)
+WLED_GLOBAL char mqttGroupTopic[MQTT_MAX_TOPIC_LEN+1]  _INIT(""); // second MQTT topic (for example to group devices)
 WLED_GLOBAL char mqttServer[MQTT_MAX_SERVER_LEN+1]     _INIT("");         // both domains and IPs should work (no SSL)
 WLED_GLOBAL char mqttUser[41] _INIT("");                   // optional: username for MQTT auth
-WLED_GLOBAL char mqttPass[65] _INIT("");                   // optional: password for MQTT auth
+WLED_GLOBAL char mqttPass[65] _INIT("");                     // optional: password for MQTT auth
 WLED_GLOBAL char mqttClientID[41] _INIT("");               // override the client ID
-WLED_GLOBAL uint16_t mqttPort _INIT(1883);
+WLED_GLOBAL uint16_t mqttPort _INIT(1885);
 WLED_GLOBAL bool retainMqttMsg _INIT(false);               // retain brightness and color
-#define WLED_MQTT_CONNECTED (mqtt != nullptr && mqtt->connected())
+#define WLED_MQTT_CONNECTED (mqtt.connected()) // TODO_S1 mqtt != nullptr && 
 #else
 #define WLED_MQTT_CONNECTED false
 #endif

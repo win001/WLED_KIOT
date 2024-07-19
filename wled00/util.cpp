@@ -611,11 +611,51 @@ void printFileContentFS(const char* path) {
     file.close();
 }
 
-String rightString(const char *s, size_t length) {
-    String str;
-    str.reserve(length);
-    for (size_t i = 0; i < length; i++) str += s[i];
-    return str;
+/*
+ * copied from tools.ino
+ */
+void wifiDisconnect() {
+    WiFi.disconnect();
+}
+
+void wifiStatus() {
+    // delay(200);
+    if (WiFi.getMode() == WIFI_AP_STA) {
+        // Serial.println("MODE AP + STA");
+        DEBUG_MSG_P(PSTR("[WIFI] MODE AP + STA --------------------------------\n"));
+    } else if (WiFi.getMode() == WIFI_AP) {
+        //  Serial.println("MODE AP");
+        DEBUG_MSG_P(PSTR("[WIFI] MODE AP --------------------------------------\n"));
+    } else if (WiFi.getMode() == WIFI_STA) {
+        DEBUG_MSG_P(PSTR("[WIFI] MODE STA -------------------------------------\n"));
+    } else {
+        //  Serial.println("MODE OFF");
+        DEBUG_MSG_P(PSTR("[WIFI] MODE OFF -------------------------------------\n"));
+        DEBUG_MSG_P(PSTR("[WIFI] No connection\n"));
+    }
+
+    if ((WiFi.getMode() & WIFI_AP) == WIFI_AP) {
+        // DEBUG_MSG_P(PSTR("[WIFI] SSID %s\n"), jw.getAPSSID().c_str()); // TODO_S2
+        DEBUG_MSG_P(PSTR("[WIFI] PASS %s\n"), getSetting("adminPass", ADMIN_PASS).c_str());
+        DEBUG_MSG_P(PSTR("[WIFI] IP   %s\n"), WiFi.softAPIP().toString().c_str());
+        DEBUG_MSG_P(PSTR("[WIFI] MAC  %s\n"), WiFi.softAPmacAddress().c_str());
+    }
+
+    if ((WiFi.getMode() & WIFI_STA) == WIFI_STA) {
+        //  Serial.println("STA SS");
+        DEBUG_MSG_P(PSTR("[WIFI] SSID %s\n"), WiFi.SSID().c_str());
+        DEBUG_MSG_P(PSTR("[WIFI] IP   %s\n"), WiFi.localIP().toString().c_str());
+        DEBUG_MSG_P(PSTR("[WIFI] MAC  %s\n"), WiFi.macAddress().c_str());
+        DEBUG_MSG_P(PSTR("[WIFI] GW   %s\n"), WiFi.gatewayIP().toString().c_str());
+        DEBUG_MSG_P(PSTR("[WIFI] DNS  %s\n"), WiFi.dnsIP().toString().c_str());
+        DEBUG_MSG_P(PSTR("[WIFI] MASK %s\n"), WiFi.subnetMask().toString().c_str());
+        DEBUG_MSG_P(PSTR("[WIFI] HOST %s\n"), WiFi.hostname().c_str());
+        DEBUG_MSG_P(PSTR("[WIFI] Channel %d \n"), WiFi.channel());
+        DEBUG_MSG_P(PSTR("[WIFI] Bssid %s \n"), WiFi.BSSIDstr().c_str());
+        
+        // jw.setWifiMode(WIFI_STA);
+    }
+    DEBUG_MSG_P(PSTR("[WIFI] ----------------------------------------------\n"));
 }
 
 long long char2LL(char *str) {
@@ -641,6 +681,41 @@ int getCipherlength(int len) {
     return len + 16 - len % 16;
 }
 
+// #include <Ticker.h>
+Ticker _defer_reset;
+uint8_t _reset_reason = 0;
+extern EEPROM_Rotate EEPROMr;
+
+void setBoardName() {
+#ifndef ESPURNA_CORE
+    setSetting("boardName", DEVICE);
+#endif
+}
+
+String getBoardName() {
+    return getSetting("boardName", DEVICE);
+}
+
+String getCoreVersion() {
+    String version = ESP.getCoreVersion();
+#ifdef ARDUINO_ESP8266_RELEASE
+    if (version.equals("00000000")) {
+        version = String(ARDUINO_ESP8266_RELEASE);
+    }
+#endif
+    return version;
+}
+
+String getCoreRevision() {
+#ifdef ARDUINO_ESP8266_GIT_VER
+    return String(ARDUINO_ESP8266_GIT_VER);
+#else
+    return String("");
+#endif
+}
+// WTF
+// Calling ESP.getFreeHeap() is making the system crash on a specific
+// AiLight bulb, but anywhere else...
 unsigned int getFreeHeap() {
     return ESP.getFreeHeap();
 }
@@ -652,3 +727,1106 @@ unsigned int getInitialFreeHeap() {
     }
     return _heap;
 }
+
+unsigned int getInitialFreeStack() {
+    // TODO_S2
+    static unsigned int _stack = 0;
+    // if (0 == _stack) {
+    //     _stack = getFreeStack();
+    // }
+    return _stack;
+}
+
+unsigned int getUsedHeap() {
+    return getInitialFreeHeap() - getFreeHeap();
+}
+
+String buildTime() {
+    const char time_now[] = __TIME__;  // hh:mm:ss
+    unsigned int hour = atoi(&time_now[0]);
+    unsigned int minute = atoi(&time_now[3]);
+    unsigned int second = atoi(&time_now[6]);
+
+    const char date_now[] = __DATE__;  // Mmm dd yyyy
+    const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    unsigned int month = 0;
+    for (int i = 0; i < 12; i++) {
+        if (strncmp(date_now, months[i], 3) == 0) {
+            month = i + 1;
+            break;
+        }
+    }
+    unsigned int day = atoi(&date_now[3]);
+    unsigned int year = atoi(&date_now[7]);
+
+    char buffer[20];
+    snprintf_P(
+        buffer, sizeof(buffer), PSTR("%04d-%02d-%02d %02d:%02d:%02d"),
+        year, month, day, hour, minute, second);
+
+    return String(buffer);
+}
+
+unsigned long getUptime() {
+    static unsigned long last_uptime = 0;
+    static unsigned char uptime_overflows = 0;
+
+    if (millis() < last_uptime) ++uptime_overflows;
+    last_uptime = millis();
+    unsigned long uptime_seconds = uptime_overflows * (UPTIME_OVERFLOW / 1000) + (last_uptime / 1000);
+
+    return uptime_seconds;
+}
+
+#if 0 //HEARTBEAT_ENABLED
+
+/* void heartbeat() {
+    unsigned long uptime_seconds = getUptime();
+    unsigned int free_heap = ESP.getFreeHeap();
+
+    //DEBUG_MSG_P(PSTR("[MAIN] Time: %s\n"), (char *) NTP.getTimeDateString().c_str());
+
+    DEBUG_MSG_P(PSTR("[MAIN] Uptime: %ld seconds\n"), uptime_seconds);
+    DEBUG_MSG_P(PSTR("[MAIN] Free heap: %d bytes\n"), free_heap);
+
+#if ENABLE_ADC_VCC
+    DEBUG_MSG_P(PSTR("[MAIN] Power: %d mV\n"), ESP.getVcc());
+#endif
+
+#if NTP_SUPPORT
+    if (ntpSynced()) DEBUG_MSG_P(PSTR("[MAIN] Time: %s\n"), (char *)ntpDateTime().c_str());
+#endif
+
+    if (!canSendMqttMessage()) {
+        return;
+    }
+
+#if (MQTT_REPORT_STATUS)
+    // Dont Encrypt and Dont Stack
+    mqttSend(MQTT_TOPIC_STATUS, MQTT_STATUS_ONLINE, false, true, false, true);
+#endif
+
+#if (MQTT_REPORT_LAST_RESET_REASON)
+    if (!mqtt_firstbeat_reported) {
+        // mqttSend(MQTT_TOPIC_RESET_REASON, ESP.getResetReason().c_str(), true);
+        unsigned char custom_reset = resetReason();
+        char last_reset_rsn_buffer[45];
+        if (custom_reset > 0) {
+            strcpy_P(last_reset_rsn_buffer, custom_reset_string[custom_reset - 1]);
+
+        } else {
+            strcpy(last_reset_rsn_buffer, (char *)ESP.getResetReason().c_str());
+            // DEBUG_MSG_P(PSTR("Last reset reason: %s\n"), (char *) ESP.getResetReason().c_str());
+        }
+        mqttSend(MQTT_TOPIC_RESET_REASON, String(last_reset_rsn_buffer).c_str(), true);
+    }
+#endif
+
+// #if (MQTT_REPORT_INTERVAL)
+//     if(!mqtt_firstbeat_reported){
+//         mqttSend(MQTT_TOPIC_INTERVAL, HEARTBEAT_INTERVAL / 1000);
+//     }
+// #endif
+#if (MQTT_REPORT_APP)
+    if (!mqtt_firstbeat_reported) {
+        mqttSend(MQTT_TOPIC_APP, APP_NAME, true);
+        mqttSend(MQTT_TOPIC_BUILD_DATE, __DATE__, true);
+    }
+#endif
+#if (MQTT_REPORT_VERSION)
+    if (!mqtt_firstbeat_reported) {
+        mqttSend(MQTT_TOPIC_VERSION, APP_VERSION, true);
+#if HAVE_SIBLING_CONTROLLER
+        mqttSend(MQTT_TOPIC_ATMVERSION, getSetting("ATMVERSION", ATM_DEFAULT_VERSION).c_str(), true);
+#endif
+    }
+#endif
+#if (MQTT_REPORT_HOSTNAME)
+    if (!mqtt_firstbeat_reported) {
+        mqttSend(MQTT_TOPIC_HOSTNAME, getSetting("hostname").c_str(), true);
+    }
+#endif
+#if (MQTT_REPORT_IP)
+    if (!wifi_connected_beat) {
+        mqttSend(MQTT_TOPIC_IP, getIP().c_str(), true);
+    }
+#endif
+#if (MQTT_REPORT_MAC)
+    if (!mqtt_firstbeat_reported) {
+        mqttSend(MQTT_TOPIC_MAC, WiFi.macAddress().c_str(), true);
+    }
+#endif
+#if (MQTT_REPORT_NETWORK)
+    if (!wifi_connected_beat) {
+        mqttSend(MQTT_TOPIC_NETWORK, getNetwork().c_str(), true);
+    }
+#endif
+#if (MQTT_REPORT_RSSI)
+    if (!wifi_connected_beat) {
+        mqttSend(MQTT_TOPIC_RSSI, String(WiFi.RSSI()).c_str(), true);
+    }
+#endif
+#if (MQTT_REPORT_UPTIME)
+    mqttSend(MQTT_TOPIC_UPTIME, String(uptime_seconds).c_str(), true);
+#if ENABLE_INFLUXDB
+    influxDBSend(MQTT_TOPIC_UPTIME, String(uptime_seconds).c_str());
+#endif
+#endif
+#if (MQTT_REPORT_FREEHEAP)
+    mqttSend(MQTT_TOPIC_FREEHEAP, String(free_heap).c_str(), true);
+#if ENABLE_INFLUXDB
+    influxDBSend(MQTT_TOPIC_FREEHEAP, String(free_heap).c_str());
+#endif
+#endif
+#if (LOADAVG_REPORT)
+    mqttSend(MQTT_TOPIC_LOADAVG, String(systemLoadAverage()).c_str(), true);
+#endif
+
+#if MQTT_REPORT_RELAY
+    // Send All Relay Status also only once after its connected to wifi. otherwise no need.
+    // if(!wifi_connected_beat){
+    relayAllMQTT();
+    // }
+#endif
+#if MQTT_REPORT_CONFIG
+    if (!config_mqtt_reported) {
+        config_mqtt_reported = settingsMQTT();
+    }
+#endif
+#if LIGHT_PROVIDER != LIGHT_PROVIDER_NONE
+#if (MQTT_REPORT_COLOR)
+    mqttSend(MQTT_TOPIC_COLOR, lightColor().c_str(), true);
+#endif
+
+#endif
+#if (MQTT_REPORT_VCC)
+#if ENABLE_ADC_VCC
+    if (!wifi_connected_beat) {
+        mqttSend(MQTT_TOPIC_VCC, String(ESP.getVcc()).c_str(), true);
+    }
+#endif
+#endif
+} */
+
+void heartbeat_new() {
+    // Serial.println("Heartbeat New");
+
+    unsigned long uptime_seconds = getUptime();
+    unsigned int free_heap = ESP.getFreeHeap();
+
+    //DEBUG_MSG_P(PSTR("[MAIN] Time: %s\n"), (char *) NTP.getTimeDateString().c_str());
+
+    DEBUG_MSG_P(PSTR("[MAIN] Uptime: %ld seconds\n"), uptime_seconds);
+    DEBUG_MSG_P(PSTR("[MAIN] Free heap: %d bytes\n"), free_heap);
+
+#if ENABLE_ADC_VCC
+    DEBUG_MSG_P(PSTR("[MAIN] Power: %d mV\n"), ESP.getVcc());
+#endif
+
+#if NTP_SUPPORT
+    if (ntpSynced()) DEBUG_MSG_P(PSTR("[MAIN] Time: %s\n"), (char *)ntpDateTime().c_str());
+#endif
+
+    if (!canSendMqttMessage()) {
+        return;
+    }
+
+#if (MQTT_REPORT_STATUS)
+    // Dont Encrypt and Dont Stack
+    mqttSend(MQTT_TOPIC_STATUS, MQTT_STATUS_ONLINE, false, true, false, true);
+#endif
+
+    DynamicJsonBuffer jsonBuffer(300);
+    JsonObject &root = jsonBuffer.createObject();
+
+#if (MQTT_REPORT_LAST_RESET_REASON)
+    if (!reset_reason_reported) {
+        uint8_t custom_reset = resetReason();
+        if (custom_reset > 0) {
+            root[MQTT_TOPIC_RESET_REASON] = custom_reset;
+        } else {
+            char last_reset_rsn_buffer[45] = "";
+            uint8_t rsn = 0;
+            strncpy(last_reset_rsn_buffer, (char *)ESP.getResetReason().c_str(),  sizeof(last_reset_rsn_buffer) -1);
+            if (strcmp(last_reset_rsn_buffer, "Power on") == 0) {
+                rsn = 1;
+            } else if (strcmp(last_reset_rsn_buffer, "Hardware Watchdog") == 0) {
+                rsn = 2;
+            } else if (strcmp(last_reset_rsn_buffer, "Exception") == 0) {
+                rsn = 3;
+            } else if (strcmp(last_reset_rsn_buffer, "Software Watchdog") == 0) {
+                rsn = 4;
+            } else if (strcmp(last_reset_rsn_buffer, "Software/System restart") == 0) {
+                rsn = 5;
+            } else if (strcmp(last_reset_rsn_buffer, "Deep-Sleep Wake") == 0) {
+                rsn = 6;
+            } else if (strcmp(last_reset_rsn_buffer, "External System") == 0) {
+                rsn = 7;
+            }
+            root[MQTT_TOPIC_RESET_REASON] = rsn + 20;
+        }
+    }
+#endif
+
+#if (MQTT_REPORT_APP)
+    if (!mqtt_firstbeat_reported) {
+        root[MQTT_TOPIC_APP] = APP_NAME;
+        // root[MQTT_TOPIC_BUILD_DATE] = __DATE__;
+        // mqttSend(MQTT_TOPIC_APP, APP_NAME, true);
+        // mqttSend(MQTT_TOPIC_BUILD_DATE, __DATE__, true);
+    }
+#endif
+#if (MQTT_REPORT_VERSION)
+    if (!mqtt_firstbeat_reported) {
+        root[MQTT_TOPIC_VERSION] = APP_VERSION;
+        root[MQTT_TOPIC_REVISION] = APP_REVISION;
+#if HAVE_SIBLING_CONTROLLER
+        root[MQTT_TOPIC_ATMVERSION] = getSetting("ATMVERSION", ATM_DEFAULT_VERSION);
+#endif
+        // mqttSend(MQTT_TOPIC_VERSION, APP_VERSION, true);
+    }
+#endif
+#if (MQTT_REPORT_HOSTNAME)
+    if (!mqtt_firstbeat_reported) {
+        root[MQTT_TOPIC_HOSTNAME] = getSetting("hostname");
+        // mqttSend(MQTT_TOPIC_HOSTNAME, getSetting("hostname").c_str(), true);
+    }
+#endif
+#if (MQTT_REPORT_IP)
+    if (!wifi_connected_beat) {
+        root[MQTT_TOPIC_IP] = getIP();
+        // mqttSend(MQTT_TOPIC_IP, getIP().c_str(),true);
+    }
+#endif
+#if (MQTT_REPORT_MAC)
+    if (!mqtt_firstbeat_reported) {
+        root[MQTT_TOPIC_MAC] = WiFi.macAddress();
+        // mqttSend(MQTT_TOPIC_MAC, WiFi.macAddress().c_str(),true);
+    }
+#endif
+#if (MQTT_REPORT_NETWORK)
+    if (!wifi_connected_beat) {
+        root[MQTT_TOPIC_NETWORK] = getNetwork();
+        // mqttSend(MQTT_TOPIC_NETWORK, getNetwork().c_str(),true);
+    }
+#endif
+#if (MQTT_REPORT_RSSI)
+    if (!wifi_connected_beat) {
+        root[MQTT_TOPIC_RSSI] = String(WiFi.RSSI());
+        // mqttSend(MQTT_TOPIC_RSSI, String(WiFi.RSSI()).c_str(),true);
+    }
+#endif
+#if (MQTT_REPORT_UPTIME)
+    root[MQTT_TOPIC_UPTIME] = String(uptime_seconds);
+// mqttSend(MQTT_TOPIC_UPTIME, String(uptime_seconds).c_str(), true);
+#if ENABLE_INFLUXDB
+// influxDBSend(MQTT_TOPIC_UPTIME, String(uptime_seconds).c_str());
+#endif
+#endif
+#if (MQTT_REPORT_FREEHEAP)
+    // Do not send it for the first time - Mostly, it'll have good free heap only. 
+    if(wifi_connected_beat){
+        root[MQTT_TOPIC_FREEHEAP] = String(free_heap);
+    }
+// mqttSend(MQTT_TOPIC_FREEHEAP, String(free_heap).c_str(), true);
+#if ENABLE_INFLUXDB
+// influxDBSend(MQTT_TOPIC_FREEHEAP, String(free_heap).c_str());
+#endif
+#endif
+#if (LOADAVG_REPORT)
+    root[MQTT_TOPIC_LOADAVG] = String(systemLoadAverage());
+    // mqttSend(MQTT_TOPIC_LOADAVG, String(systemLoadAverage()).c_str(), true);
+#endif
+
+#if MQTT_REPORT_RELAY
+    // Send All Relay Status also only once after its connected to wifi. otherwise no need.
+    // if(!wifi_connected_beat){
+    if(relayCount() > 0){
+        relayAllMQTT();
+    }
+    // }
+#endif
+#if MQTT_REPORT_CONFIG
+    if (!config_mqtt_reported) {
+        config_mqtt_reported = settingsMQTT();
+    }
+#endif
+#if LIGHT_PROVIDER != LIGHT_PROVIDER_NONE
+#if (MQTT_REPORT_COLOR)
+    root[MQTT_TOPIC_COLOR] = lightColor();
+    // mqttSend(MQTT_TOPIC_COLOR, lightColor().c_str(), true);
+#endif
+
+#endif
+#if (MQTT_REPORT_VCC)
+#if ENABLE_ADC_VCC
+    if (!wifi_connected_beat) {
+        root[MQTT_TOPIC_VCC] = String(ESP.getVcc());
+        // mqttSend(MQTT_TOPIC_VCC, String(ESP.getVcc()).c_str(), true);
+    }
+#endif
+#endif
+    String output;
+    root.printTo(output);
+    if (mqttSend(MQTT_TOPIC_BEAT, output.c_str(), false)) {
+        mqtt_firstbeat_reported = true;
+        wifi_connected_beat = true;
+        reset_reason_reported = true;
+        // DEBUG_MSG_P(PSTR("No Surprise, We sent the heartbeat \n"));
+    }
+}
+
+#endif  /// HEARTBEAT_ENABLED
+// MQTT REPORTING EVENT
+bool reportEventToMQTT(const char *ev, const char *meta) {
+    if (!canSendMqttMessage()) return false;
+    char messageBuffer[200] = "";
+    StaticJsonDocument<256> root;
+    root["e"] = ev;
+    root["e_m"] = meta;
+    serializeJson(root, messageBuffer, sizeof(messageBuffer));
+    return mqttSend(MQTT_TOPIC_EVENT_LARGE, messageBuffer, false, false, true,
+                    false);
+}
+
+#if ESP_ARDUINO_CORE_IS == 1
+extern "C" uint32_t _SPIFFS_start;
+extern "C" uint32_t _SPIFFS_end;
+#elif ESP_ARDUINO_CORE_IS == 2
+extern "C" uint32_t _FS_start;
+extern "C" uint32_t _FS_end;
+#endif
+
+unsigned long info_ota_space() {
+    return (ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000;
+}
+
+unsigned int sectors(size_t size) {
+    return (int)(size + SPI_FLASH_SEC_SIZE - 1) / SPI_FLASH_SEC_SIZE;
+}
+unsigned int info_bytes2sectors(size_t size) {
+    return (int)(size + SPI_FLASH_SEC_SIZE - 1) / SPI_FLASH_SEC_SIZE;
+}
+
+unsigned long info_filesystem_space() {
+// #if ESP_ARDUINO_CORE_IS == 1
+//     return ((uint32_t)&_SPIFFS_end - (uint32_t)&_SPIFFS_start);
+// #elif ESP_ARDUINO_CORE_IS == 2
+//     return ((uint32_t)&_FS_end - (uint32_t)&_FS_start);
+// #endif
+    return 0;
+}
+
+unsigned long info_eeprom_space() {
+    return EEPROMr.reserved() * SPI_FLASH_SEC_SIZE;
+}
+
+void _info_print_memory_layout_line(const char *name, unsigned long bytes, bool reset) {
+    static unsigned long index = 0;
+    if (reset) index = 0;
+    if (0 == bytes) return;
+    unsigned int _sectors = info_bytes2sectors(bytes);
+    DEBUG_MSG_P(PSTR("[INIT] %-20s: %8lu bytes / %4d sectors (%4d to %4d)\n"), name, bytes, _sectors, index, index + _sectors - 1);
+    index += _sectors;
+}
+
+void _info_print_memory_layout_line(const char *name, unsigned long bytes) {
+    _info_print_memory_layout_line(name, bytes, false);
+}
+void infoMemory(const char *name, unsigned int total_memory, unsigned int free_memory) {
+    DEBUG_MSG_P(
+        PSTR("[MAIN] %-6s: %5u bytes initially | %5u bytes used (%2u%%) | %5u bytes free (%2u%%)\n"),
+        name,
+        total_memory,
+        total_memory - free_memory,
+        100 * (total_memory - free_memory) / total_memory,
+        free_memory,
+        100 * free_memory / total_memory);
+}
+
+void info() {
+    DEBUG_MSG_P(PSTR("\n\n"));
+    DEBUG_MSG_P(PSTR("[INIT] %s %s\n"), (char *)APP_NAME, (char *)APP_VERSION);
+    DEBUG_MSG_P(PSTR("[INIT] %s\n"), (char *)APP_AUTHOR);
+    DEBUG_MSG_P(PSTR("[INIT] %s\n\n"), (char *)APP_WEBSITE);
+    DEBUG_MSG_P(PSTR("[INIT] CPU chip ID: 0x%06X\n"), ESP.getChipId());
+    DEBUG_MSG_P(PSTR("[INIT] CPU frequency: %u MHz\n"), ESP.getCpuFreqMHz());
+    DEBUG_MSG_P(PSTR("[INIT] SDK version: %s\n"), ESP.getSdkVersion());
+    DEBUG_MSG_P(PSTR("[INIT] Core version: %s\n"), getCoreVersion().c_str());
+    DEBUG_MSG_P(PSTR("[INIT] Core revision: %s\n"), getCoreRevision().c_str());
+    DEBUG_MSG_P(PSTR("\n"));
+    DEBUG_MSG_P(PSTR("[INIT] Sketch MD5 : %s \n"), ESP.getSketchMD5().c_str());
+    DEBUG_MSG_P(PSTR("\n"));
+    // -------------------------------------------------------------------------
+
+    FlashMode_t mode = ESP.getFlashChipMode();
+    DEBUG_MSG_P(PSTR("[INIT] Flash chip ID: 0x%06X\n"), ESP.getFlashChipId());
+    DEBUG_MSG_P(PSTR("[INIT] Flash speed: %u Hz\n"), ESP.getFlashChipSpeed());
+    DEBUG_MSG_P(PSTR("[INIT] Flash mode: %s\n"), mode == FM_QIO ? "QIO" : mode == FM_QOUT ? "QOUT" : mode == FM_DIO ? "DIO" : mode == FM_DOUT ? "DOUT" : "UNKNOWN");
+    DEBUG_MSG_P(PSTR("\n"));
+
+    _info_print_memory_layout_line("Flash size (CHIP)", ESP.getFlashChipRealSize(), true);
+    _info_print_memory_layout_line("Flash size (SDK)", ESP.getFlashChipSize(), true);
+    _info_print_memory_layout_line("Reserved", 1 * SPI_FLASH_SEC_SIZE, true);
+    _info_print_memory_layout_line("Firmware size", ESP.getSketchSize());
+    _info_print_memory_layout_line("Max OTA size", info_ota_space());
+    _info_print_memory_layout_line("SPIFFS size", info_filesystem_space());
+    _info_print_memory_layout_line("EEPROM size", info_eeprom_space());
+    _info_print_memory_layout_line("Reserved", 4 * SPI_FLASH_SEC_SIZE);
+    DEBUG_MSG_P(PSTR("\n"));
+
+    // DEBUG_MSG_P(PSTR("[INIT] EEPROM sectors: %s\n"), (char *)eepromSectors().c_str()); TODO_S2
+    DEBUG_MSG_P(PSTR("\n"));
+    DEBUG_MSG_P(PSTR("[INIT] Firmware MD5: %s\n"), (char *) ESP.getSketchMD5().c_str());
+    // -------------------------------------------------------------------------
+
+#if SPIFFS_SUPPORT
+    FSInfo fs_info;
+    bool fs = SPIFFS.info(fs_info);
+    if (fs) {
+        DEBUG_MSG_P(PSTR("[INIT] SPIFFS total size: %8u bytes / %4d sectors\n"), fs_info.totalBytes, sectors(fs_info.totalBytes));
+        DEBUG_MSG_P(PSTR("[INIT]        used size:  %8u bytes\n"), fs_info.usedBytes);
+        DEBUG_MSG_P(PSTR("[INIT]        block size: %8u bytes\n"), fs_info.blockSize);
+        DEBUG_MSG_P(PSTR("[INIT]        page size:  %8u bytes\n"), fs_info.pageSize);
+        DEBUG_MSG_P(PSTR("[INIT]        max files:  %8u\n"), fs_info.maxOpenFiles);
+        DEBUG_MSG_P(PSTR("[INIT]        max length: %8u\n"), fs_info.maxPathLength);
+    } else {
+        DEBUG_MSG_P(PSTR("[INIT] No SPIFFS partition\n"));
+    }
+    DEBUG_MSG_P(PSTR("\n"));
+#endif
+
+    // -------------------------------------------------------------------------
+    #if defined(SMART_DONGLE)
+    DEBUG_MSG_P(PSTR("[INIT] DeviceId2 : %s\n"),getSetting("deviceId2").c_str());
+    #endif
+    DEBUG_MSG_P(PSTR("[INIT] BOARD: %s\n"), getBoardName().c_str());
+    DEBUG_MSG_P(PSTR("[INIT] SUPPORT:"));
+
+#if ALEXA_SUPPORT
+    DEBUG_MSG_P(PSTR(" ALEXA"));
+#endif
+#if BROKER_SUPPORT
+    DEBUG_MSG_P(PSTR(" BROKER"));
+#endif
+#if DEBUG_SERIAL_SUPPORT
+    DEBUG_MSG_P(PSTR(" DEBUG_SERIAL"));
+#endif
+#if DEBUG_TELNET_SUPPORT
+    DEBUG_MSG_P(PSTR(" DEBUG_TELNET"));
+#endif
+#if DEBUG_UDP_SUPPORT
+    DEBUG_MSG_P(PSTR(" DEBUG_UDP"));
+#endif
+#if DOMOTICZ_SUPPORT
+    DEBUG_MSG_P(PSTR(" DOMOTICZ"));
+#endif
+#if HOMEASSISTANT_SUPPORT
+    DEBUG_MSG_P(PSTR(" HOMEASSISTANT"));
+#endif
+#if I2C_SUPPORT
+    DEBUG_MSG_P(PSTR(" I2C"));
+#endif
+#if INFLUXDB_SUPPORT
+    DEBUG_MSG_P(PSTR(" INFLUXDB"));
+#endif
+#if LLMNR_SUPPORT
+    DEBUG_MSG_P(PSTR(" LLMNR"));
+#endif
+#if MDNS_SERVER_SUPPORT
+    DEBUG_MSG_P(PSTR(" MDNS_SERVER"));
+#endif
+#if MDNS_CLIENT_SUPPORT
+    DEBUG_MSG_P(PSTR(" MDNS_CLIENT"));
+#endif
+#if NETBIOS_SUPPORT
+    DEBUG_MSG_P(PSTR(" NETBIOS"));
+#endif
+#if NOFUSS_SUPPORT
+    DEBUG_MSG_P(PSTR(" NOFUSS"));
+#endif
+#if NTP_SUPPORT
+    DEBUG_MSG_P(PSTR(" NTP"));
+#endif
+#if RF_SUPPORT
+    DEBUG_MSG_P(PSTR(" RF"));
+#endif
+#if SCHEDULER_SUPPORT
+    DEBUG_MSG_P(PSTR(" SCHEDULER"));
+#endif
+#if SENSOR_SUPPORT
+    DEBUG_MSG_P(PSTR(" SENSOR"));
+#endif
+#if SPIFFS_SUPPORT
+    DEBUG_MSG_P(PSTR(" SPIFFS"));
+#endif
+#if SSDP_SUPPORT
+    DEBUG_MSG_P(PSTR(" SSDP"));
+#endif
+#if TELNET_SUPPORT
+    DEBUG_MSG_P(PSTR(" TELNET"));
+#endif
+#if TERMINAL_SUPPORT
+    DEBUG_MSG_P(PSTR(" TERMINAL"));
+#endif
+#if HTTPSERVER_SUPPORT
+    DEBUG_MSG_P(PSTR(" HTTPSERVER"));
+#endif
+#if WEB_SUPPORT
+    DEBUG_MSG_P(PSTR(" WEB"));
+#endif
+
+// #if SENSOR_SUPPORT // TODO_S2
+
+//     DEBUG_MSG_P(PSTR("\n[INIT] SENSORS:"));
+
+// #if ANALOG_SUPPORT
+//     DEBUG_MSG_P(PSTR(" ANALOG"));
+// #endif
+// #if BMX280_SUPPORT
+//     DEBUG_MSG_P(PSTR(" BMX280"));
+// #endif
+// #if DALLAS_SUPPORT
+//     DEBUG_MSG_P(PSTR(" DALLAS"));
+// #endif
+// #if DHT_SUPPORT
+//     DEBUG_MSG_P(PSTR(" DHTXX"));
+// #endif
+// #if DIGITAL_SUPPORT
+//     DEBUG_MSG_P(PSTR(" DIGITAL"));
+// #endif
+// #if ECH1560_SUPPORT
+//     DEBUG_MSG_P(PSTR(" ECH1560"));
+// #endif
+// #if EMON_ADC121_SUPPORT
+//     DEBUG_MSG_P(PSTR(" EMON_ADC121"));
+// #endif
+// #if EMON_ADS1X15_SUPPORT
+//     DEBUG_MSG_P(PSTR(" EMON_ADX1X15"));
+// #endif
+// #if EMON_ANALOG_SUPPORT
+//     DEBUG_MSG_P(PSTR(" EMON_ANALOG"));
+// #endif
+// #if EVENTS_SUPPORT
+//     DEBUG_MSG_P(PSTR(" EVENTS"));
+// #endif
+// #if HLW8012_SUPPORT
+//     DEBUG_MSG_P(PSTR(" HLW8012"));
+// #endif
+// #if MHZ19_SUPPORT
+//     DEBUG_MSG_P(PSTR(" MHZ19"));
+// #endif
+// #if PMSX003_SUPPORT
+//     DEBUG_MSG_P(PSTR(" PMSX003"));
+// #endif
+// #if SHT3X_I2C_SUPPORT
+//     DEBUG_MSG_P(PSTR(" SHT3X_I2C"));
+// #endif
+// #if SI7021_SUPPORT
+//     DEBUG_MSG_P(PSTR(" SI7021"));
+// #endif
+// #if V9261F_SUPPORT
+//     DEBUG_MSG_P(PSTR(" V9261F"));
+// #endif
+
+// #endif  // SENSOR_SUPPORT
+
+    DEBUG_MSG_P(PSTR("\n\n"));
+
+    // -------------------------------------------------------------------------
+
+    unsigned char reason = resetReason();
+    if (reason > 0) {
+        char buffer[32];
+        // strcpy_P(buffer, custom_reset_string[reason - 1]); TODO_S2
+        DEBUG_MSG_P(PSTR("[INIT] Last reset reason: %s\n"), buffer);
+    } else {
+        DEBUG_MSG_P(PSTR("[INIT] Last reset reason: %s\n"), (char *)ESP.getResetReason().c_str());
+    }
+
+    DEBUG_MSG_P(PSTR("[INIT] Settings size: %u bytes\n"), settingsSize());
+    DEBUG_MSG_P(PSTR("[INIT] Free heap: %u bytes\n"), getFreeHeap());
+#if ADC_VCC_ENABLED
+    DEBUG_MSG_P(PSTR("[INIT] Power: %u mV\n"), ESP.getVcc());
+#endif
+
+    // DEBUG_MSG_P(PSTR("[INIT] Power saving delay value: %lu ms\n"), _loopDelay); TODO_S2
+#if SYSTEM_CHECK_ENABLED
+    if (!systemCheck()) DEBUG_MSG_P(PSTR("\n[INIT] Device is in SAFE MODE\n"));
+#endif
+
+    DEBUG_MSG_P(PSTR("\n"));
+}
+
+void infoProduction() {
+    Serial.print("[App]: ");
+    Serial.println(APP_NAME);
+
+    Serial.print("[Version]: ");
+    Serial.println(APP_VERSION);
+
+    Serial.print("[Device]: ");
+    Serial.println(DEVICE);
+
+    Serial.print("[Cv]: ");
+    Serial.println(SETTINGS_VERSION);
+
+    Serial.print("[Sv]: ");
+    Serial.println(SENSORS_VERSION);
+
+    Serial.print("[AppRevision]: ");
+    Serial.println(APP_REVISION);
+
+    Serial.print("[ESPCore]: ");
+    Serial.println(getCoreVersion());
+
+    Serial.print("[ESPSDK]: ");
+    Serial.println(ESP.getSdkVersion());
+
+    Serial.print("[ChipId]: ");
+    Serial.println(ESP.getChipId());
+
+    Serial.print("[Identifier]: ");
+    Serial.println(getSetting("identifier"));
+    
+    #if defined(SMART_DONGLE)
+    Serial.print("[DeviceId2]: ");
+    Serial.println(getSetting("deviceId2"));
+    #endif
+
+    Serial.print("[MD5]: ");
+    Serial.println(ESP.getSketchMD5());
+
+    if (WiFi.getMode() == WIFI_AP_STA) {
+        SERIAL_SEND("[WIFI] MODE AP + STA --------------------------------\n");
+    } else if (WiFi.getMode() == WIFI_AP) {
+        SERIAL_SEND("[WIFI] MODE AP --------------------------------------\n");
+    } else if (WiFi.getMode() == WIFI_STA) {
+        SERIAL_SEND("[WIFI] MODE STA -------------------------------------\n");
+    } else {
+        SERIAL_SEND("[WIFI] MODE OFF -------------------------------------\n");
+        SERIAL_SEND("[WIFI] No connection\n");
+    }
+
+    if ((WiFi.getMode() & WIFI_AP) == WIFI_AP) {
+        // SERIAL_SEND("[WIFI] SSID %s\n", jw.getAPSSID().c_str()); TODO_S2
+        // SERIAL_SEND("[WIFI] PASS %s\n", getSetting("adminPass", ADMIN_PASS).c_str());
+        SERIAL_SEND("[WIFI] IP   %s\n", WiFi.softAPIP().toString().c_str());
+        SERIAL_SEND("[WIFI] MAC  %s\n", WiFi.softAPmacAddress().c_str());
+    }
+
+    if ((WiFi.getMode() & WIFI_STA) == WIFI_STA) {
+        SERIAL_SEND("[WIFI] SSID %s\n", WiFi.SSID().c_str());
+        SERIAL_SEND("[WIFI] IP   %s\n", WiFi.localIP().toString().c_str());
+        SERIAL_SEND("[WIFI] MAC  %s\n", WiFi.macAddress().c_str());
+        SERIAL_SEND("[WIFI] GW   %s\n", WiFi.gatewayIP().toString().c_str());
+        SERIAL_SEND("[WIFI] DNS  %s\n", WiFi.dnsIP().toString().c_str());
+        SERIAL_SEND("[WIFI] MASK %s\n", WiFi.subnetMask().toString().c_str());
+        SERIAL_SEND("[WIFI] HOST %s\n", WiFi.hostname().c_str());
+        // jw.setWifiMode(WIFI_STA);
+    }
+    SERIAL_SEND("[WIFI] ----------------------------------------------\n");
+}
+
+String getAdminPass() {
+    return getSetting("adminPass", ADMIN_PASS);
+}
+
+
+// -----------------------------------------------------------------------------
+
+unsigned char resetReason() {
+    static unsigned char status = 255;
+    if (status == 255) {
+        status = EEPROMr.read(EEPROM_CUSTOM_RESET);
+        if (status > 0) resetReason(0);
+        if (status > CUSTOM_RESET_MAX) status = 0;
+    }
+    return status;
+}
+
+void resetReason(unsigned char reason) {
+    EEPROMr.write(EEPROM_CUSTOM_RESET, reason);
+    // EEPROMr.commit();
+    saveSettings();
+}
+
+void reset(unsigned char reason) {
+    // resetReason(reason);
+    // ESP.restart();
+    _reset_reason = reason;
+}
+void resetActual() {
+    ESP.restart();
+}
+
+void deferredReset(unsigned long delay, unsigned char reason) {
+    resetReason(reason);
+    // relaySave(); TODO_S1
+    _defer_reset.once_ms(delay, reset, reason);
+}
+
+bool checkNeedsReset() {
+    return _reset_reason > 0;
+}
+
+
+
+// -----------------------------------------------------------------------------
+
+// --------------------------- Atmega Related --------------------------------------------------
+// TODO_S2
+// void controllerversionRetrieve() {
+//     #if RELAY_PROVIDER == RELAY_PROVIDER_KU && (KU_SERIAL_SUPPORT)
+//         //TODO: implement new command for version here
+//     #else
+//     Serial.println("");
+//     SERIAL_SEND_P(PSTR("%s %s \n"), COMMAND_CONFIG, COMMAND_VINFO);
+//     #endif
+// }
+
+#if HAVE_SIBLING_CONTROLLER
+void setAtmVersion(String version) {
+    if (!getSetting("ATMVERSION", "").equals(version)) {
+        setSetting("ATMVERSION", version);
+        saveSettings();
+    }
+}
+
+String getAtmVersion() {
+    return getSetting("ATMVERSION", ATM_DEFAULT_VERSION);
+}
+#endif
+
+// -----------------------------------------------------------------------------
+
+// --------------------------- JSON Helpers TODO_S2--------------------------------------------------
+// JsonVariant cloneJsonVariant(JsonBuffer &jb, JsonVariant prototype) {
+//     if (prototype.is<JsonObject>()) {
+//         const JsonObject &protoObj = prototype;
+//         JsonObject &newObj = jb.createObject();
+//         for (const auto &kvp : protoObj) {
+//             newObj[jb.strdup(kvp.key)] = cloneJsonVariant(jb, kvp.value);
+//         }
+//         return newObj;
+//     }
+
+//     if (prototype.is<JsonArray>()) {
+//         const JsonArray &protoArr = prototype;
+//         JsonArray &newArr = jb.createArray();
+//         for (const auto &elem : protoArr) {
+//             newArr.add(cloneJsonVariant(jb, elem));
+//         }
+//         return newArr;
+//     }
+
+//     if (prototype.is<char *>()) {
+//         return jb.strdup(prototype.as<const char *>());
+//     }
+
+//     return prototype;
+// }
+
+// -----------------------------------------------------------------------------
+
+// #if SYSTEM_CHECK_ENABLED
+
+// // Call this method on boot with start=true to increase the crash counter
+// // Call it again once the system is stable to decrease the counter
+// // If the counter reaches SYSTEM_CHECK_MAX then the system is flagged as unstable
+// // setting _systemOK = false;
+// //
+// // An unstable system will only have serial access, WiFi in AP mode and OTA
+
+// bool _systemStable = true;
+
+// void systemCheck(bool stable) {
+//     unsigned char value = EEPROM.read(EEPROM_CRASH_COUNTER);
+//     if (stable) {
+//         value = 0;
+//         DEBUG_MSG_P(PSTR("[MAIN] System OK\n"));
+//     } else {
+//         if (++value > SYSTEM_CHECK_MAX) {
+//             _systemStable = false;
+//             value = 0;
+//             DEBUG_MSG_P(PSTR("[MAIN] System UNSTABLE\n"));
+//         }
+//     }
+//     EEPROM.write(EEPROM_CRASH_COUNTER, value);
+//     EEPROM.commit();
+// }
+
+// bool systemCheck() {
+//     return _systemStable;
+// }
+
+// void systemCheckLoop() {
+//     static bool checked = false;
+//     if (!checked && (millis() > SYSTEM_CHECK_TIME)) {
+//         // Check system as stable
+//         systemCheck(true);
+//         checked = true;
+//     }
+// }
+
+// #endif
+
+char *ltrim(char *s) {
+    char *p = s;
+    while ((unsigned char)*p == ' ') ++p;
+    return p;
+}
+
+double roundTo(double num, unsigned char positions) {
+    double multiplier = 1;
+    while (positions-- > 0) multiplier *= 10;
+    return round(num * multiplier) / multiplier;
+}
+void nice_delay(unsigned long ms) {
+    unsigned long start = millis();
+    while (millis() - start < ms) delay(1);
+}
+
+void very_nice_delay(uint32_t usec) {
+    for (; usec > MAX_ACCURATE_USEC_DELAY; usec -= MAX_ACCURATE_USEC_DELAY)
+        delayMicroseconds(MAX_ACCURATE_USEC_DELAY);
+    delayMicroseconds(static_cast<uint16_t>(usec));
+}
+
+// Wrestle Arduino into making strings that may contain zeros.
+// Taken inspiration from Embedis Library
+String rightString(const char *s, size_t length) {
+    String str;
+    str.reserve(length);
+    for (size_t i = 0; i < length; i++) str += s[i];
+    return str;
+}
+
+bool compareTrimmedStrings(const char* str1, const char* str2){
+    uint8_t l1 = trimmedLength(str1);
+    uint8_t l2 = trimmedLength(str2);
+    if(l1!=l2){
+        return false;
+    }
+    for(uint8_t i = 0; i < l1; i++){
+        if(str1[i] != str2[i]) return false;
+    }
+    return true;
+
+}
+
+uint8_t trimmedLength(const char* str){
+    uint8_t full = strlen(str);
+    if(!full) return 0;
+    while(full--){
+        if(*(str + full) != ' '){
+            // cout << *(str + full) << endl;
+            return ++full;
+        }
+        
+    }
+    return 0;
+}
+
+#if ASYNC_TCP_SSL_ENABLED || HTTPSERVER_USE_SSL
+
+bool sslCheckFingerPrint(const char *fingerprint) {
+    return (strlen(fingerprint) == 59);
+}
+
+bool sslFingerPrintArray(const char *fingerprint, unsigned char *bytearray) {
+    // check length (20 2-character digits ':' or ' ' separated => 20*2+19 = 59)
+    if (!sslCheckFingerPrint(fingerprint)) return false;
+
+    // walk the fingerprint
+    for (unsigned int i = 0; i < 20; i++) {
+        bytearray[i] = strtol(fingerprint + 3 * i, NULL, 16);
+    }
+
+    return true;
+}
+
+bool sslFingerPrintChar(const char *fingerprint, char *destination) {
+    // check length (20 2-character digits ':' or ' ' separated => 20*2+19 = 59)
+    if (!sslCheckFingerPrint(fingerprint)) return false;
+
+    // copy it
+    strncpy(destination, fingerprint, 59);
+
+    // walk the fingerprint replacing ':' for ' '
+    for (unsigned char i = 0; i < 59; i++) {
+        if (destination[i] == ':') destination[i] = ' ';
+    }
+
+    return true;
+}
+
+#endif
+
+bool debouncedRead(uint8_t pin, bool status, unsigned int time){
+    unsigned int ones = 0;
+    unsigned int zeroes = 0;
+    unsigned long start = millis();
+    while (millis() >= start && (millis() - start < time))
+    {
+        bool switch_status = digitalRead(pin);
+        switch_status == HIGH ? ones++ : zeroes++;
+    }
+    // DEBUG_MSG_P(PSTR("Zeroes : %d, Ones %d \n"), zeroes, ones);
+    return status ? ones > zeroes : zeroes > ones;
+}
+
+// A very novice function - which can be improved in future. 
+bool isValidMacAddress(char * mac){
+    if(strlen(mac) != 12){
+        return false;
+    }
+    return true;
+}
+
+// Imported from 
+// https://github.com/gmag11/EnigmaIOT/blob/2fd868448cb674eeb9c8ee9e5aa50e9521775982/src/helperFunctions.cpp#L104
+
+uint8_t* str2mac (const char* macAddrString, uint8_t* macBytes) {
+	const char cSep = ':';
+
+	if (!macBytes) {
+		return NULL;
+	}
+
+	for (int i = 0; i < 6; ++i) {
+		unsigned int iNumber = 0;
+		char ch;
+
+		//Convert letter into lower case.
+		ch = tolower (*macAddrString++);
+
+		if ((ch < '0' || ch > '9') && (ch < 'a' || ch > 'f')) {
+			return NULL;
+		}
+
+		//Convert into number. 
+		//  a. If character is digit then ch - '0'
+		//	b. else (ch - 'a' + 10) it is done 
+		//	      because addition of 10 takes correct value.
+		iNumber = isdigit (ch) ? (ch - '0') : (ch - 'a' + 10);
+		ch = tolower (*macAddrString);
+
+		if ((i < 5 && ch != cSep) ||
+			(i == 5 && ch != '\0' && !isspace (ch))) {
+			++macAddrString;
+
+			if ((ch < '0' || ch > '9') && (ch < 'a' || ch > 'f')) {
+				return NULL;
+			}
+
+			iNumber <<= 4;
+			iNumber += isdigit (ch) ? (ch - '0') : (ch - 'a' + 10);
+			ch = *macAddrString;
+
+			if (i < 5 && ch != cSep) {
+				return NULL;
+			}
+		}
+		/* Store result.  */
+		macBytes[i] = (unsigned char)iNumber;
+		/* Skip cSep.  */
+		++macAddrString;
+	}
+	return macBytes;
+}
+
+/*
+    eepromrotate.ino functions
+*/
+
+void eepromRotate(bool value) {
+    // Enable/disable EEPROM rotation only if we are using more sectors than the
+    // reserved by the memory layout
+    if (EEPROMr.size() > EEPROMr.reserved()) {
+        if (value) {
+            DEBUG_MSG_P(PSTR("[EEPROM] Reenabling EEPROM rotation\n"));
+        } else {
+            DEBUG_MSG_P(PSTR("[EEPROM] Disabling EEPROM rotation\n"));
+        }
+        EEPROMr.rotate(value);
+    }
+}
+
+String eepromSectors() {
+    String response;
+    for (uint32_t i = 0; i < EEPROMr.size(); i++) {
+        if (i > 0) response = response + String(", ");
+        response = response + String(EEPROMr.base() - i);
+    }
+    return response;
+}
+void eepromSectorsDebug() {
+    DEBUG_MSG_P(PSTR("[MAIN] EEPROM sectors: %s\n"), (char *)eepromSectors().c_str());
+    DEBUG_MSG_P(PSTR("[MAIN] EEPROM current: %lu\n"), eepromCurrent());
+    Serial.println(eepromSectors());
+    Serial.println(eepromCurrent());
+}
+
+uint32_t eepromCurrent() {
+    return EEPROMr.current();
+}
+void eepromBackup(uint32_t index) {
+    EEPROMr.backup(index);
+}
+
+#if DEBUG_SERIAL_SUPPORT
+
+void _eepromInitCommands() {
+    /* settingsRegisterCommand(F("EEPROMDUMP"), [](Embedis* e) {
+        EEPROMr.dump(settingsSerial());
+        DEBUG_MSG_P(PSTR("\n+OK\n"));
+    });
+
+    settingsRegisterCommand(F("FLASHDUMP"), [](Embedis* e) {
+        if (e->argc < 2) {
+            DEBUG_MSG_P(PSTR("-ERROR: Wrong arguments\n"));
+            return;
+        }
+        uint32_t sector = String(e->argv[1]).toInt();
+        uint32_t max = ESP.getFlashChipSize() / SPI_FLASH_SEC_SIZE;
+        if (sector >= max) {
+            DEBUG_MSG_P(PSTR("-ERROR: Sector out of range\n"));
+            return;
+        }
+        EEPROMr.dump(settingsSerial(), sector);
+        DEBUG_MSG_P(PSTR("\n+OK\n"));
+    });
+ */
+}
+
+#endif
+
+// -----------------------------------------------------------------------------
+
+void eepromSetup() {
+#ifdef EEPROM_ROTATE_SECTORS
+    EEPROMr.size(EEPROM_ROTATE_SECTORS);
+#else
+    // If the memory layout has more than one sector reserved use those,
+    // otherwise calculate pool size based on memory size.
+    if (EEPROMr.size() == 1) {
+        if (EEPROMr.last() > 1000) {  // 4Mb boards
+            EEPROMr.size(4);
+        } else if (EEPROMr.last() > 250) {  // 1Mb boards
+            EEPROMr.size(2);
+        }
+    }
+#endif
+#if DEVELOPEMEMT_MODE
+    eepromSectorsDebug();
+#endif
+
+    EEPROMr.offset(EEPROM_ROTATE_DATA);
+    EEPROMr.begin(EEPROM_SIZE);
+
+#if DEBUG_SERIAL_SUPPORT
+    _eepromInitCommands();
+#endif
+}
+

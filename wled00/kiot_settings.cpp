@@ -302,7 +302,7 @@ void settingsFactoryReset() {
 
     saveSettings();
 
-    // deferredReset(1000, CUSTOM_RESET_FACTORY); TODO_S1
+    deferredReset(4000, CUSTOM_RESET_FACTORY); // TODO_S2
 }
 
 void _eepromRraseAll() {
@@ -344,7 +344,7 @@ void settingsSetup() {
     initSettigs();
 
 #ifdef MQTT_SETTINGS_ENABLED
-    // settingsSetupMQTT(); TODO_S1
+    settingsSetupMQTT();
 #endif
 
     DEBUG_MSG_P(PSTR("\n"));
@@ -352,7 +352,7 @@ void settingsSetup() {
     DEBUG_MSG_P(PSTR("[SETTINGS] Settings size: %d bytes\n"), settingsSize());
     // Callbacks
     afterConfigParseRegister(setReportSettings);
-    // loopRegister(settingsLoop); TODO_S1
+    loopRegister(settingsLoop);
     migrateSettings();
     copyKiotSettings();
 }
@@ -419,11 +419,15 @@ void settingsLoop()
     if (_sendSettings)
     {
         // DEBUG_MSG_P(PSTR("I am being called \n"));
-        if (0)//(settingsMQTT()) TODO_S1
+        if (settingsMQTT())
         {
             _sendSettings = false;
         }
     }
+    // TODO_S2 : move it to system.ino
+    if (checkNeedsReset()) {
+        resetActual();
+    }    
 }
 
 void _settingsInitCommands() {
@@ -614,6 +618,11 @@ void _settingsInitCommands() {
     settingsRegisterCommand(F("KIOTMQTTFETCH"), [](Embedis* e) {
         setFetchMqttConf(true);
         SERIAL_SEND_P(PSTR("Done\n"));
+    }); 
+
+    settingsRegisterCommand(F("PING"), [](Embedis* e) {
+        activeHomePong(true);
+        DEBUG_MSG_P(PSTR("Done\n"));
     });    
 
 //     settingsRegisterCommand(F("EEPROMDUMPRAW"), [](Embedis* e) {
@@ -657,26 +666,26 @@ void _settingsInitCommands() {
 //         SERIAL_SEND("Done\n");
 //     });
 
-//     settingsRegisterCommand(F("DEVICEINFO"), [](Embedis* e) {
-//         info();
-//         wifiStatus();
-//         DEBUG_MSG_P(PSTR("Done\n"));
+    settingsRegisterCommand(F("DEVICEINFO"), [](Embedis* e) {
+        info();
+        wifiStatus();
+        DEBUG_MSG_P(PSTR("Done\n"));
 
-// #if DEVELOPEMEMT_MODE == 0 || DEVELOPEMEMT_MODE == 2
-//         infoProduction();
-//         Serial.println("Done");
-// #endif
-//     });
+#if DEVELOPEMEMT_MODE == 0 || DEVELOPEMEMT_MODE == 2
+        infoProduction();
+        Serial.println("Done");
+#endif
+    });
 
 //     /* settingsRegisterCommand(F("DEVUPTIME"), [](Embedis* e) {
 //         DEBUG_MSG_P(PSTR("Uptime: %d seconds\n"), getUptime());
 //         DEBUG_MSG_P(PSTR("Done\n"));
 //     }); */
 
-//     settingsRegisterCommand(F("RESTART"), [](Embedis* e) {
-//         DEBUG_MSG_P(PSTR("Done\n"));
-//         deferredReset(100, CUSTOM_RESET_TERMINAL);
-//     });
+    settingsRegisterCommand(F("RESTART"), [](Embedis* e) {
+        DEBUG_MSG_P(PSTR("Done\n"));
+        deferredReset(100, CUSTOM_RESET_TERMINAL);
+    });
 
 //     settingsRegisterCommand(F("DELCONFIG"), [](Embedis* e) {
 //         DEBUG_MSG_P(PSTR("Done\n"));
@@ -1000,156 +1009,155 @@ void settingsRegisterCommand(const String& name, void (*call)(Embedis*)) {
     Embedis::command(name, call);
 };
 
-// void settingsSetupMQTT() { // TODO_S1
-//     mqttRegister(settingsMQTTCallback);
-// }
+void settingsSetupMQTT() { mqttRegister(settingsMQTTCallback); }
 
-// void settingsMQTTCallback(unsigned int type, const char* topic, const char* payload, bool retained, bool isEncrypted) { // TODO_S1
-//     if (type == MQTT_CONNECT_EVENT) {
-//         char buffer[strlen(MQTT_TOPIC_CONFIG) + 3];
-//         sprintf(buffer, "%s", MQTT_TOPIC_CONFIG);
-//         mqttSubscribe(buffer, MQTT_QOS_SETTINGS);
-//     }
-//     if (type == MQTT_MESSAGE_EVENT) {
-//         if (retained && !MQTT_HANDLE_RET_SETTINGS) {
-//             return;
-//         }
-//         // Match topic
-//         String t = mqttSubtopic((char*)topic);
-//         if (!t.startsWith(MQTT_TOPIC_CONFIG)) return;
+void settingsMQTTCallback(unsigned int type, const char* topic,
+                          const char* payload, bool retained,
+                          bool isEncrypted) {
+    if (type == MQTT_CONNECT_EVENT) {
+        char buffer[strlen(MQTT_TOPIC_CONFIG) + 3];
+        sprintf(buffer, "%s", MQTT_TOPIC_CONFIG);
+        mqttSubscribe(buffer, MQTT_QOS_SETTINGS);
+    }
+    if (type == MQTT_MESSAGE_EVENT) {
+        if (retained && !MQTT_HANDLE_RET_SETTINGS) {
+            return;
+        }
+        // Match topic
+        String t = mqttSubtopic((char*)topic);
+        if (!t.startsWith(MQTT_TOPIC_CONFIG)) return;
 
-//         if (MQTT_MANDATE_ENC_SETTINGS && !isEncrypted) {
-//             DEBUG_MSG_P(PSTR("[CONFIG] Required Encrypted payload. Got unencrypted."));
-//             return;
-//         }
+        if (MQTT_MANDATE_ENC_SETTINGS && !isEncrypted) {
+            DEBUG_MSG_P(PSTR("[CONFIG] Required Encrypted payload. Got unencrypted."));
+            return;
+        }
 
-//         DynamicJsonBuffer jsonBuffer(256);
-//         JsonObject& root = jsonBuffer.parseObject(reinterpret_cast<const char*>(payload));
-//         if (!root.success()) {
-//             DEBUG_MSG_P(PSTR("[ERROR] parseObject() failed for MQTT"));
-//             Serial.println(reinterpret_cast<const char*>(payload));
-//             return;
-//         }
-//         if (root.containsKey("config") || root.containsKey("action")) {
-//             DEBUG_MSG_P(PSTR("[DEBUG] CONFIG message recieved \n"));
-//             #if DEBUG_KU_CONTROLLER
-//                 char messageBuffer[250] = "";
-//                 root.printTo(messageBuffer, sizeof(messageBuffer));
-//                 DEBUG_MSG_P(PSTR("[DEBUG] : %s \n"), String(messageBuffer).c_str());
-//             #endif
-//             if (root.containsKey("config") && root["config"].is<JsonObject&>()) {
-//                 // JsonArray& config = root["config"];
-//                 JsonObject& config = root["config"];
-//                 char buffer[50] = "";
-//                 processConfig(config, "mqtt", buffer, 50);
-//                 _sendSettings = true;
-//                 reportEventToHome(String(EVENT_CONFIG_RCVD), "1");
-//             } else if (root.containsKey("action")) {
-//                 String action = root["action"];
-//                 if (root.containsKey("meta")) {
-//                     JsonObject& meta = root["meta"];
-//                     _processAction(action, meta);
-//                 } else {
-//                     _processAction(action);
-//                 }
-//             }
-//         }
+        StaticJsonDocument<256> root;
+        DeserializationError error =
+            deserializeJson(root, reinterpret_cast<const char*>(payload));
+        if (error) {
+            DEBUG_MSG_P(PSTR("[ERROR] parseObject() failed for MQTT"));
+            Serial.println(reinterpret_cast<const char*>(payload));
+            return;
+        }
+        if (root.containsKey("config") || root.containsKey("action")) {
+            DEBUG_MSG_P(PSTR("[DEBUG] CONFIG message recieved \n"));
+            #if DEBUG_KU_CONTROLLER
+                char messageBuffer[250] = "";
+                serializeJson(root, messageBuffer);
+                DEBUG_MSG_P(PSTR("[DEBUG] : %s \n"), String(messageBuffer).c_str());
+            #endif
+            if (root.containsKey("config") && root["config"].is<JsonObject>()) {
+                // JsonArray& config = root["config"];
+                JsonObject config = root["config"];
+                char buffer[50] = "";
+                processConfig(config, "mqtt", buffer, 50);
+                _sendSettings = true;
+                reportEventToHome(String(EVENT_CONFIG_RCVD), "1");
+            } else if (root.containsKey("action")) {
+                String action = root["action"];
+                if (root.containsKey("meta")) {
+                    JsonObject meta = root["meta"];
+                    _processAction(action, meta);
+                } else {
+                    _processAction(action);
+                }
+            }
+        }
 
-//         // if(q==NULL){
-//         //     return ;
-//         // }
-//         // DEBUG_MSG_P(PSTR("[DEBUG] MQTT Question Type: %s\n"),q);
-//         // // Send a message on serial, it'll report to mqtt when recieving update from serial
-//         // if(strcmp(q,MQTT_TOPIC_TEMP) == 0){
-//         //     report_sensor(MQTT_TOPIC_TEMP);
+        // if(q==NULL){
+        //     return ;
+        // }
+        // DEBUG_MSG_P(PSTR("[DEBUG] MQTT Question Type: %s\n"),q);
+        // // Send a message on serial, it'll report to mqtt when recieving update from serial if(strcmp(q,MQTT_TOPIC_TEMP) == 0){
+        //     report_sensor(MQTT_TOPIC_TEMP);
+        // }
+    }
+}
 
-//         // }
-//     }
-// }
+bool settingsMQTT() {
+    if (!canSendMqttMessage()) {
+        return false;
+    }
+    DynamicJsonDocument root(1024);
+    // TODO_S2
+    // root["app"] = APP_NAME;
+    // root["version"] = APP_VERSION;
+    // root["rev"] = APP_REVISION;
+    // root["network"] = getNetwork();
+    // root["buildDate"] = __DATE__;
+    root["sv"] = SETTINGS_VERSION;
+    bool sent = true;
+    String output;
+    serializeJson(root, output);
+    String mqttTopic = String(MQTT_TOPIC_CONFIG) + "/" + String(MQTT_TOPIC_INFO);
+    sent = sent && mqttSend(mqttTopic.c_str(), output.c_str());
+    if (!sent) {
+        return false;
+    }
+    delay(100);
+    for (int i = 0; i < set_config_keys_callbacks.size(); i++) {
+        DynamicJsonDocument root(1024);
 
-// bool settingsMQTT() {
-//     if (!canSendMqttMessage()) {
-//         return false;
-//     }
-//     DynamicJsonBuffer jsonBuffer(1024);
-//     bool sent = true;
-    
-//     #if LOW_POWER_OPTIMIZATION != 1
-//         JsonObject& root = jsonBuffer.createObject();
-//         root["sv"] = SETTINGS_VERSION;
-//         root["ssv"] = SENSORS_VERSION;
-//         String output;
-//         root.printTo(output);
-//         String mqttTopic = String(MQTT_TOPIC_CONFIG) + "/" + String(MQTT_TOPIC_INFO);
-//         sent = sent && mqttSend(mqttTopic.c_str(), output.c_str());
-//         if (!sent) {
-//             return false;
-//         }
-//         delay(100);
-//     #endif
+        char topic[MAX_CONFIG_TOPIC_SIZE] = "";
+        (set_config_keys_callbacks[i])(root, topic, false);
+        String output;
+        serializeJson(root, output);
+        String mqttTopic = String(MQTT_TOPIC_CONFIG) + "/" + String(topic);
+        sent = sent && mqttSend(mqttTopic.c_str(), output.c_str());
+        // To stop this loop here Only.
+        // Untill We find a solution to send only specific config to server.
+        if (!sent) {
+            return false;
+        }
+        // I do not know why - but just intuition wise keeping 100ms delay.
+        delay(100);
+    }
+    return sent;
+}
 
-//     for (int i = 0; i < set_config_keys_callbacks.size(); i++) {
-//         JsonObject& root = jsonBuffer.createObject();
+bool settingsHTTP() {
+    if (!WLED_CONNECTED || (WiFi.getMode() != WIFI_STA)) return false;
 
-//         char topic[MAX_CONFIG_TOPIC_SIZE] = "";
-//         (set_config_keys_callbacks[i])(jsonBuffer, root, topic, false);
-//         String output;
-//         root.printTo(output);
-//         String mqttTopic = String(MQTT_TOPIC_CONFIG) + "/" + String(topic);
-//         sent = sent && mqttSend(mqttTopic.c_str(), output.c_str());
-//         // To stop this loop here Only.
-//         // Untill We find a solution to send only specific config to server.
-//         if (!sent) {
-//             return false;
-//         }
-//         // I do not know why - but just intuition wise keeping 100ms delay.
-//         delay(100);
-//     }
-//     return sent;
-// }
+    DynamicJsonDocument root(1024);
+    root["app"] = APP_NAME;
+    root["version"] = APP_VERSION;
+    root["rev"] = APP_REVISION;
+    root["network"] = NULL;//getNetwork(); // TODO_S1
+    root["buildDate"] = __DATE__;
+    bool sent = true;
 
-// bool settingsHTTP() {
-//     if (!wifiConnected() || (WiFi.getMode() != WIFI_STA)) return false;
+    // String output;
+    // serializeJson(root, output);
+    // String mqttTopic = String(MQTT_TOPIC_CONFIG)+
+    // "/"+String(MQTT_TOPIC_INFO);
 
-//     DynamicJsonBuffer jsonBuffer(1000);
-//     JsonObject& root = jsonBuffer.createObject();
-//     root["app"] = APP_NAME;
-//     root["version"] = APP_VERSION;
-//     root["rev"] = APP_REVISION;
-//     root["network"] = getNetwork();
-//     root["buildDate"] = __DATE__;
-//     bool sent = true;
+    // delay(100);
 
-//     // String output;
-//     // root.printTo(output);
-//     // String mqttTopic = String(MQTT_TOPIC_CONFIG)+ "/"+String(MQTT_TOPIC_INFO);
+    for (int i = 0; i < set_config_keys_callbacks.size(); i++) {
+        DynamicJsonDocument container(1024);
 
-//     // delay(100);
+        char topic[MAX_CONFIG_TOPIC_SIZE] = "";
+        (set_config_keys_callbacks[i])(container, topic, false);
+        // String output;
+        // serializeJson(root, output);
+        // String mqttTopic = String(MQTT_TOPIC_CONFIG)+ "/"+String(topic);
+        // sent = sent && mqttSend(mqttTopic.c_str(), output.c_str());
+        // I do not know why - but just intuition wise keeping 100ms delay.
+        // delay(100);
+        root[String(topic)] = container;
+    }
 
-//     for (int i = 0; i < set_config_keys_callbacks.size(); i++) {
-//         JsonObject& container = jsonBuffer.createObject();
+    String output;
+    serializeJson(root, output);
+    // Serial.println(output);
 
-//         char topic[MAX_CONFIG_TOPIC_SIZE] = "";
-//         (set_config_keys_callbacks[i])(jsonBuffer, container, topic, false);
-//         // String output;
-//         // root.printTo(output);
-//         // String mqttTopic = String(MQTT_TOPIC_CONFIG)+ "/"+String(topic);
-//         // sent = sent && mqttSend(mqttTopic.c_str(), output.c_str());
-//         // I do not know why - but just intuition wise keeping 100ms delay.
-//         // delay(100);
-//         root[String(topic)] = container;
-//     }
-
-//     String output;
-//     root.printTo(output);
-//     // Serial.println(output);
-
-//     //  httpEnqueue("config", output.c_str());
-//     for (int i = 0; i < 3; i++) {
-//         mqttSend("config", output.c_str(), false, true);
-//     }
-//     return sent;
-// }
+    //  httpEnqueue("config", output.c_str());
+    for (int i = 0; i < 3; i++) {
+        mqttSend("config", output.c_str(), false, true);
+    }
+    return sent;
+}
 
 void migrateSettings() {
     uint8_t sv = getSetting("sv", 1).toInt();
@@ -1205,6 +1213,8 @@ void copyKiotSettings() {
     getStringFromJson(clientSSID, copySetting.c_str(), 33);
     copySetting = getSetting("pass0", "");
     getStringFromJson(clientPass, copySetting.c_str(), 65);
+    copySetting = getSetting("hostname", "");
+    getStringFromJson(apSSID, copySetting.c_str(), 33);
     encryptSetup();
     copySetting = getSetting("mqttUser", "");
     getStringFromJson(mqttUser, copySetting.c_str(), 33);

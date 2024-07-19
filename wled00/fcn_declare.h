@@ -179,8 +179,42 @@ void parseLxJson(int lxValue, byte segId, bool secondary);
 #endif
 
 //mqtt.cpp
-bool initMqtt();
-void publishMqtt();
+// bool initMqtt();
+// void publishMqtt();
+
+void mqttSetup();
+void mqttLoop();
+void resetMqttBeatFlags();
+bool canSendMqttMessage();
+void setHeartBeatSchedule(unsigned long heart_beat);
+void mqttSubscribe(const char* topic);
+void mqttSubscribe(const char* topic, int QOS);
+void _mqttOnMessage(char* topic, char* payload, int length);
+void _mqttOnMessage(char* topic, char* payload, unsigned int len, int index, int total);
+bool mqttSend(const char* topic, const char* message, bool stack_msg, bool dont_enctrypt, bool useGetter = true, bool retain = MQTT_RETAIN);
+bool mqttSend(const char* topic, const char* message, bool stack_msg);
+bool mqttSend(const char* topic, const char* message);
+bool mqttSend(const char* topic, unsigned int index, const char* message, bool force);
+bool mqttSend(const char* topic, unsigned int index, const char* message);
+void settingsMQTTCallback(unsigned int type, const char* topic,
+                          const char* payload, bool retained,
+                          bool isEncrypted);
+void mqttReset();
+void wifiDisconnect();
+void resetActual();
+void setReportSettings();
+
+//home.cpp
+void homeSetupMQTT();
+void homeReportSetup();
+void homePong();
+void reportEventToHome(String name, String value);
+void homeLoop();
+void homeSetup();
+void needReportHome(bool report);
+bool needReportHome();
+void activeHomePong(bool immidiate);
+void homeMQTTCallback(unsigned int type, const char* topic, const char* payload, bool retained, bool isEncrypted);
 
 //ntp.cpp
 void handleTime();
@@ -336,6 +370,22 @@ void userConnected();
 void userLoop();
 
 //util.cpp
+// START eepromrotate related
+void eepromRotate(bool value);
+String eepromSectors();
+void eepromSectorsDebug();
+uint32_t eepromCurrent();
+void eepromBackup(uint32_t index) ;
+void _eepromInitCommands();
+void eepromSetup();
+// END eepromrotate related
+
+void wifiStatus();
+void infoProduction();
+void info();
+void loopRegister(void (*callback)());
+bool checkNeedsReset();
+void deferredReset(unsigned long delay, unsigned char reason);
 int getNumVal(const String* req, uint16_t pos);
 void parseNumber(const char* str, byte* val, byte minv=0, byte maxv=255);
 bool getVal(JsonVariant elem, byte* val, byte minv=0, byte maxv=255);
@@ -364,7 +414,10 @@ int getCipherlength(int len);
 String rightString(const char *s, size_t length);
 unsigned int getFreeHeap();
 unsigned int getInitialFreeHeap();
-
+unsigned char resetReason();
+void resetReason(unsigned char reason);
+bool compareTrimmedStrings(const char* str1, const char* str2);
+uint8_t trimmedLength(const char* str);
 // RAII guard class for the JSON Buffer lock
 // Modeled after std::lock_guard
 class JSONBufferGuard {
@@ -459,6 +512,7 @@ String _getCNonce(const int len);
 void setFetchCustomConfig(bool val);
 void setFetchMqttConf(bool val);
 void setFetchRPCAction(bool val);
+void httpClientSetup();
 
 //base64.cpp
 int base64_encode(char *output, char *input, int inputLen);
@@ -494,7 +548,8 @@ void debugConfigure();
 #include <Embedis.h>
 #include "libs/EmbedisWrap.h"
 #include <EEPROM_Rotate.h>
-// EEPROM_Rotate EEPROMr;
+#include <Ticker.h>
+
 void getSupportedConfigWeb(DynamicJsonDocument& root);
 void settingsLoop();
 void settingsSetup();
@@ -534,6 +589,9 @@ bool setDefaultSettings();
 void initSettigs();
 String generateApiKey();
 void _deleteDevice();
+void settingsSetupMQTT();
+bool settingsMQTT();
+unsigned long settingsSize();
 
 //prototypes.h
 // #include <Arduino.h>
@@ -632,18 +690,18 @@ void setConfigKeys(set_config_keys_callback_f callback);
 // template <typename T> bool setSetting(const String& key, unsigned int index, T value);
 // template <typename T> String getSetting(const String& key, T defaultValue);
 // template <typename T> String getSetting(const String& key, unsigned int index, T defaultValue);
-// void settingsGetJson(JsonObject& data);
+void settingsGetJson(JsonObject& data);
 // bool settingsRestoreJson(JsonObject& data);
 // void settingsRegisterCommand(const String& name, void (*call)(Embedis*));
 
-// // -----------------------------------------------------------------------------
-// // MQTT
-// // -----------------------------------------------------------------------------
-// typedef std::function<void(unsigned int, const char*, const char*, bool, bool)> mqtt_callback_f;
-// void mqttRegister(mqtt_callback_f callback);
-// String mqttSubtopic(char* topic);
-// bool mqttSend(const char* topic, const char* message, bool stack_msg, bool dont_enctrypt, bool useGetter, bool retain);
-// bool mqttSendRaw(const char* topic, const char* message, bool dont_encrypt, bool retain);
+// -----------------------------------------------------------------------------
+// MQTT
+// -----------------------------------------------------------------------------
+typedef std::function<void(unsigned int, const char*, const char*, bool, bool)> mqtt_callback_f;
+void mqttRegister(mqtt_callback_f callback);
+String mqttSubtopic(char* topic);
+bool mqttSend(const char* topic, const char* message, bool stack_msg, bool dont_enctrypt, bool useGetter, bool retain);
+bool mqttSendRaw(const char* topic, const char* message, bool dont_encrypt, bool retain);
 
 // // -----------------------------------------------------------------------------
 // // WiFi

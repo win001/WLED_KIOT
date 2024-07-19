@@ -8,6 +8,11 @@
 #include "soc/rtc_cntl_reg.h"
 #endif
 
+std::vector<void (*)()> _loops;
+void loopRegister(void (*callback)()) {
+    _loops.push_back(callback);
+}
+
 /*
  * Main WLED class implementation. Mostly initialization and connection logic
  */
@@ -139,7 +144,7 @@ void WLED::loop()
   if (millis() - lastMqttReconnectAttempt > 30000 || lastMqttReconnectAttempt == 0) { // lastMqttReconnectAttempt==0 forces immediate broadcast
     lastMqttReconnectAttempt = millis();
     #ifndef WLED_DISABLE_MQTT
-    initMqtt();
+    // initMqtt(); TODO_S1
     #endif
     yield();
     // refresh WLED nodes list
@@ -209,6 +214,10 @@ void WLED::loop()
   if (doReboot && (!doInitBusses || !doSerializeConfig)) // if busses have to be inited & saved, wait until next iteration
     reset();
 
+  for (unsigned char i = 0; i < _loops.size(); i++) {
+      (_loops[i])();
+      yield();
+  }  
 // DEBUG serial logging (every 30s)
 #ifdef WLED_DEBUG
   loopMillis = millis() - loopMillis;
@@ -496,7 +505,14 @@ pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), Pin
 
   // HTTP server page init
   DEBUG_PRINTLN(F("initServer"));
+  #if defined(WLED_ENABLE_WEBSERVER)
   initServer();
+  #endif
+  settingsSetup();
+  webSetup();
+  mqttSetup();
+  homeReportSetup();
+  httpClientSetup();
   DEBUG_PRINT(F("heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
 
   enableWatchdog();
@@ -504,6 +520,13 @@ pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), Pin
   #if defined(ARDUINO_ARCH_ESP32) && defined(WLED_DISABLE_BROWNOUT_DET)
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 1); //enable brownout detector
   #endif
+
+#ifdef WLED_DEBUG
+  printFileContentFS("/presets.json");
+  printFileContentFS("/tmp.json");
+  printFileContentFS("/cfg.json");
+  printFileContentFS("/wsec.json");
+#endif
 }
 
 void WLED::beginStrip()
@@ -535,6 +558,7 @@ void WLED::beginStrip()
 
 void WLED::initAP(bool resetAP)
 {
+  DEBUG_PRINT(F("Enterred AP Mode... "));
   if (apBehavior == AP_BEHAVIOR_BUTTON_ONLY && !resetAP)
     return;
 
@@ -544,7 +568,7 @@ void WLED::initAP(bool resetAP)
   }
   DEBUG_PRINT(F("Opening access point "));
   DEBUG_PRINTLN(apSSID);
-  WiFi.softAPConfig(IPAddress(4, 3, 2, 1), IPAddress(4, 3, 2, 1), IPAddress(255, 255, 255, 0));
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
   WiFi.softAP(apSSID, apPass, apChannel, apHide);
   #if defined(LOLIN_WIFI_FIX) && (defined(ARDUINO_ARCH_ESP32C3) || defined(ARDUINO_ARCH_ESP32S2) || defined(ARDUINO_ARCH_ESP32S3))
   WiFi.setTxPower(WIFI_POWER_8_5dBm);
@@ -786,7 +810,7 @@ void WLED::initInterfaces()
   ddp.begin(false, DDP_DEFAULT_PORT);
   reconnectHue();
 #ifndef WLED_DISABLE_MQTT
-  initMqtt();
+  // initMqtt(); TODO_S1
 #endif
   interfacesInited = true;
   wasConnected = true;

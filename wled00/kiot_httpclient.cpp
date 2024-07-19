@@ -320,7 +320,7 @@ void setFetchCustomConfig(bool val){
 #endif
 
 void httpClientSetup() {
-    // loopRegister(httpClientLoop); TODO_S1
+    loopRegister(httpClientLoop);
 }
 
 void httpClientLoop() {

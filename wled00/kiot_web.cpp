@@ -4,7 +4,7 @@
 // #include <ESPAsyncTCP.h>
 // #include <ESPAsyncWebServer.h>
 #include <Hash.h>
-#include <Ticker.h>
+// #include <Ticker.h>
 #include <map>
 // #include <vector>
 // #include <FS.h>
@@ -167,7 +167,7 @@ void processConfig(JsonObject config, const char *from, char *buffer, size_t buf
         restart = true;
     }
     if (restart) {
-        // deferredReset(2000, CUSTOM_RESET_WEB); TODO_S1
+        deferredReset(2000, CUSTOM_RESET_WEB); // TODO_S2
     } else {
         if (save) {
             // Callbacks
@@ -175,8 +175,9 @@ void processConfig(JsonObject config, const char *from, char *buffer, size_t buf
                 (_after_config_parse_callbacks[i])();
             }
 
-            if (changedMQTT) {} // WLED::reset(), mqttReset, doReboot = true, WLED::instance().reset() TODO_S1
-            // deferred.once_ms(100, mqttReset);
+            if (changedMQTT) {
+                deferred.once_ms(100, mqttReset); // TODO_S2
+            }
         }
     }
     String output;
@@ -541,13 +542,13 @@ void _onAPIs(AsyncWebServerRequest *request) {
 
 void _processAction(String action, JsonObject meta) {
     if (action.equals("reset")) {
-        // TODO_S1
-        //deferredReset(1000, CUSTOM_RESET_RPC); call reset functuion TODO
+        // TODO_S2
+        deferredReset(1000, CUSTOM_RESET_RPC);
     }
     else if (action.equals("reconnect")) {
         // Let the HTTP request return and disconnect after 100ms
-        // TODO_S1
-        // deferred.once_ms(500, wifiDisconnect); // disconnect from wifi TODO
+        // TODO_S2
+        deferred.once_ms(500, wifiDisconnect);
     }
 #if NOFUSS_SUPPORT
     else if (action.equals("checkForUpdate")) {
@@ -579,9 +580,9 @@ void _processAction(String action, JsonObject meta) {
             // createLongAP(false); TODO_S1
         });
     } else if (action.equals("sb")) {
-        // setReportSettings(); TODO_S1
-        // resetMqttBeatFlags(); // Required
-        // setHeartBeatSchedule(millis());
+        setReportSettings(); // TODO_S2
+        resetMqttBeatFlags(); // Required
+        setHeartBeatSchedule(millis());
     } 
     else if (action.equals("snsrst")) {
         // Reset Sensors Configuration -
@@ -620,9 +621,9 @@ void _processAction(String action, JsonObject meta) {
         if (meta.containsKey("m_CmdId")) {
             mode_DpId = meta["m_CmdId"];
         }
-        // KUSetCustomSettingDP(mode_DpId, mode_type, mode_val); TODO_S1
+        // KUSetCustomSettingDP(mode_DpId, mode_type, mode_val); TODO_S2
     } else if (action.equals("custom_config")) {
-        // setFetchCustomConfig(true); TODO_S1
+        setFetchCustomConfig(true);
     }
     else {
         DEBUG_MSG_P(PSTR("[DEBUG] Unknown action in RPC"));
@@ -724,7 +725,7 @@ void _onGetConfigAll(AsyncWebServerRequest *request) {
     root["app"] = APP_NAME;
     root["version"] = APP_VERSION;
     root["rev"] = APP_REVISION;
-    // settingsGetJson(root); TODO_S1
+    settingsGetJson(root);
     response->setLength();
     request->send(response);
 }
@@ -998,7 +999,7 @@ void _onPing(AsyncWebServerRequest *request) {
     request->send(response);
 }
 
-#if 0//EMBEDDED_WEB TODO_S1
+#if EMBEDDED_WEB // TODO_S2
 void _onHome(AsyncWebServerRequest *request) {
     webLogRequest(request);
 
@@ -1077,8 +1078,8 @@ void _onUpgrade(AsyncWebServerRequest *request) {
     AsyncWebServerResponse *response = request->beginResponse(200, "text/plain", Update.hasError() ? "FAIL" : "Success");
     response->addHeader("Connection", "close");
     if (!Update.hasError()) {
-        // eepromRotate(true); TODO_S1
-        // deferredReset(1000, CUSTOM_RESET_UPGRADE); TODO_S1
+        eepromRotate(true); // TODO_S2
+        deferredReset(1000, CUSTOM_RESET_UPGRADE); // TODO_S2
     }
     request->send(response);
 }
@@ -1094,10 +1095,10 @@ void _onUpgradeData(AsyncWebServerRequest *request, String filename, size_t inde
 
     if (!index) {
         // Disabling EEPROM rotation to prevent writing to EEPROM after the upgrade
-        // eepromRotate(false); TODO_S1
+        eepromRotate(false); // TODO_S2
 
         DEBUG_MSG_P(PSTR("[UPGRADE] Start: %s\n"), filename.c_str());
-        // eepromBackup(0);TODO_S1
+        eepromBackup(0); //TODO_S2
         Update.runAsync(true);
         if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)) {
             Update.printError(Serial);
@@ -1232,7 +1233,7 @@ void _onRPC(AsyncWebServerRequest *request)
 
 */
 
-// TODO_S1 following functions taken from wifi.ino think where to put all these functions.
+// TODO_S2 following functions taken from wifi.ino think where to put all these functions.
 
 void _onWifiScanServer(AsyncWebServerRequest* request) {
     DEBUG_MSG_P(PSTR("[WEB] Request for scan wifi networks"));
