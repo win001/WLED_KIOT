@@ -506,6 +506,13 @@ void processConfig(JsonObject config, const char *from, char *buffer, size_t buf
 void _processAction(String action, JsonObject meta);
 void _processAction(String action);
 
+//kiot_wled.cpp
+void kiotWledPing(JsonObject &root);
+void kiotWledSetup();
+void kiotWledLoop();
+void kiotWledConfigure();
+void kiotWledMQTTCallback(unsigned int type, const char *topic, const char *payload, bool retained, bool isEncrypted); 
+
 //httpclient.cpp
 void httpClientLoop();
 String _getCNonce(const int len);

@@ -613,17 +613,7 @@ void _settingsInitCommands() {
             SERIAL_SEND_P(PSTR("+%s => %s\n"), key.c_str(), value.c_str());
         }
         SERIAL_SEND_P(PSTR("Done\n"));
-    });
-
-    settingsRegisterCommand(F("KIOTMQTTFETCH"), [](Embedis* e) {
-        setFetchMqttConf(true);
-        SERIAL_SEND_P(PSTR("Done\n"));
-    }); 
-
-    settingsRegisterCommand(F("PING"), [](Embedis* e) {
-        activeHomePong(true);
-        DEBUG_MSG_P(PSTR("Done\n"));
-    });    
+    });   
 
 //     settingsRegisterCommand(F("EEPROMDUMPRAW"), [](Embedis* e) {
 //         bool ascii = false;

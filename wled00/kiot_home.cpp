@@ -3,7 +3,7 @@
 #if MQTT_ACTIVE_STATE_REPORT || MQTT_REPORT_EVENT_TO_HOME
 unsigned long last_home_ping = 0, last_home_pong = 0;
 #endif
-
+#define KIOT_WLED_SUPPORT 1 // TODO_S2 move it some where else
 /* void _home_config_keys(DynamicJsonDocument& root, char * topic, bool nested_under_topic) {
     strncpy_P(topic, MQTT_TOPIC_ALEXA, MAX_CONFIG_TOPIC_SIZE);
     root["homeId"] = getSetting("homeId", "");
@@ -42,13 +42,15 @@ void homePong() {
 
     // String pingString = getDeviceStatus();
 
-    StaticJsonDocument<1024> jsonBuffer;
+    StaticJsonDocument<2048> jsonBuffer;
     JsonObject root = jsonBuffer.to<JsonObject>();
 
 // #if RELAY_COUNT > 0 || RELAY_PROVIDER == RELAY_PROVIDER_KU
-#if 1 // TODO_S2
+#if KIOT_WLED_SUPPORT
     JsonObject relayObj = root.createNestedObject(MQTT_TOPIC_RELAY);
     relayString(relayObj);
+    JsonObject wledObj = root.createNestedObject(MQTT_TOPIC_COLOR_RGB);
+    kiotWledPing(wledObj);
 #endif
 
 // #if RELAY_PROVIDER == RELAY_PROVIDER_KU && CUSTOM_DP_SUPPORT

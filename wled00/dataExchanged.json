@@ -1,0 +1,247 @@
+// Color change
+
+// POST 
+
+{
+    "seg": {
+        "col": [
+            [
+                255,
+                46,
+                95,
+                0
+            ],
+            [],
+            []
+        ]
+    },
+    "v": true,
+    "time": 1721653475
+}
+
+// POST info
+{
+    "v": true
+}
+
+// GET
+
+{
+    "state": {
+        "on": true,
+        "bri": 127,
+        "transition": 7,
+        "ps": -1,
+        "pl": -1,
+        "nl": {
+            "on": false,
+            "dur": 60,
+            "mode": 1,
+            "tbri": 0,
+            "rem": -1
+        },
+        "udpn": {
+            "send": false,
+            "recv": true,
+            "sgrp": 1,
+            "rgrp": 1
+        },
+        "lor": 0,
+        "mainseg": 0,
+        "seg": [
+            {
+                "id": 0,
+                "start": 0,
+                "stop": 30,
+                "len": 30,
+                "grp": 1,
+                "spc": 0,
+                "of": 0,
+                "on": true,
+                "frz": false,
+                "bri": 255,
+                "cct": 127,
+                "set": 0,
+                "col": [
+                    [
+                        255,
+                        46,
+                        95
+                    ],
+                    [
+                        0,
+                        0,
+                        0
+                    ],
+                    [
+                        0,
+                        0,
+                        0
+                    ]
+                ],
+                "fx": 1,
+                "sx": 128,
+                "ix": 128,
+                "pal": 0,
+                "c1": 128,
+                "c2": 128,
+                "c3": 16,
+                "sel": true,
+                "rev": false,
+                "mi": false,
+                "o1": false,
+                "o2": false,
+                "o3": false,
+                "si": 0,
+                "m12": 0
+            }
+        ]
+    },
+    "info": {
+        "ver": "0.14.4",
+        "vid": 2405180,
+        "leds": {
+            "count": 30,
+            "pwr": 679,
+            "fps": 41,
+            "maxpwr": 850,
+            "maxseg": 16,
+            "seglc": [
+                1
+            ],
+            "lc": 1,
+            "rgbw": false,
+            "wv": 0,
+            "cct": 0
+        },
+        "str": false,
+        "name": "WLED",
+        "udpport": 21324,
+        "live": false,
+        "liveseg": -1,
+        "lm": "",
+        "lip": "",
+        "ws": 1,
+        "fxcount": 187,
+        "palcount": 71,
+        "cpalcount": 0,
+        "maps": [
+            {
+                "id": 0
+            }
+        ],
+        "wifi": {
+            "bssid": "7A:8C:B5:40:4A:0F",
+            "rssi": -62,
+            "signal": 76,
+            "channel": 7
+        },
+        "fs": {
+            "u": 32,
+            "t": 1024,
+            "pmt": 1721653359
+        },
+        "ndc": 0,
+        "arch": "esp8266",
+        "core": "3.1.2",
+        "lwip": 2,
+        "freeheap": 22928,
+        "uptime": 1560,
+        "time": "2024-7-22, 13:04:35",
+        "opt": 79,
+        "brand": "WLED",
+        "product": "FOSS",
+        "mac": "bcff4d17d299",
+        "ip": "192.168.0.242"
+    }
+}
+
+
+// POST Brightness
+{
+    "bri": 233,
+    "v": true,
+    "time": 1721653766
+}
+
+// POST timer
+
+{
+    "nl": {
+        "on": true
+    },
+    "v": true,
+    "time": 1721654202
+}
+
+// POST Sync
+
+{
+    "udpn": {
+        "send": true
+    },
+    "v": true,
+    "time": 1721654276
+}
+
+// POST Peak (binary)
+
+
+// POST Backgroung Color
+
+{
+    "seg": {
+        "col": [
+            [],
+            [
+                0,
+                255,
+                200,
+                0
+            ],
+            []
+        ]
+    },
+    "v": true,
+    "time": 1721655749
+}
+
+// POST color pattern
+
+{
+    "seg": {
+        "pal": 63
+    },
+    "v": true,
+    "time": 1721655849
+}
+
+// POST effects
+
+{
+    "seg": {
+        "fx": 37,
+        "fxdef": true
+    },
+    "v": true,
+    "time": 1721656196
+}
+
+// POST segment changed
+
+{
+    "seg": {
+        "id": 0,
+        "n": "",
+        "start": 0,
+        "stop": 30,
+        "grp": 1,
+        "spc": 0,
+        "of": 0
+    },
+    "v": true,
+    "time": 1721656321,
+    "transition": 8
+}
+
+// POST 

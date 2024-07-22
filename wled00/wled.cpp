@@ -512,6 +512,7 @@ pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), Pin
   webSetup();
   mqttSetup();
   homeReportSetup();
+  kiotWledSetup();
   httpClientSetup();
   DEBUG_PRINT(F("heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
 
@@ -520,13 +521,6 @@ pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), Pin
   #if defined(ARDUINO_ARCH_ESP32) && defined(WLED_DISABLE_BROWNOUT_DET)
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 1); //enable brownout detector
   #endif
-
-#ifdef WLED_DEBUG
-  printFileContentFS("/presets.json");
-  printFileContentFS("/tmp.json");
-  printFileContentFS("/cfg.json");
-  printFileContentFS("/wsec.json");
-#endif
 }
 
 void WLED::beginStrip()
