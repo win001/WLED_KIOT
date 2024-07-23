@@ -38,20 +38,22 @@ void homePong() {
 
 
     char buffer[homeId.length() + 15];
-    char messageBuffer[512] = "";
+    char messageBuffer[2048] = "";
 
     // String pingString = getDeviceStatus();
 
     StaticJsonDocument<2048> jsonBuffer;
     JsonObject root = jsonBuffer.to<JsonObject>();
 
-// #if RELAY_COUNT > 0 || RELAY_PROVIDER == RELAY_PROVIDER_KU
 #if KIOT_WLED_SUPPORT
-    JsonObject relayObj = root.createNestedObject(MQTT_TOPIC_RELAY);
-    relayString(relayObj);
     JsonObject wledObj = root.createNestedObject(MQTT_TOPIC_COLOR_RGB);
     kiotWledPing(wledObj);
 #endif
+
+// #if RELAY_COUNT > 0 || RELAY_PROVIDER == RELAY_PROVIDER_KU
+    // JsonObject relayObj = root.createNestedObject(MQTT_TOPIC_RELAY);
+    // relayString(relayObj);
+// #endif
 
 // #if RELAY_PROVIDER == RELAY_PROVIDER_KU && CUSTOM_DP_SUPPORT
 //     root[MQTT_TOPIC_CUSTOM_DP] = jsonBuffer.to<JsonObject>();
@@ -61,10 +63,12 @@ void homePong() {
 // #if MESH_GATEWAY_SUPPORT
 //     sendMeshDeviceStatuses();
 // #endif
+    // ESP.wdtDisable();
     serializeJson(root, messageBuffer, sizeof(messageBuffer));
     sprintf(buffer, "%s/%s", homeId.c_str(), MQTT_TOPIC_PING);
     mqttSend(buffer, messageBuffer, false, DONT_ENCRYPT_HOME_PING, true, MQTT_RETAIN);    
-
+    // ESP.wdtFeed();
+    // ESP.wdtEnable(6000);
     return;
 }
 

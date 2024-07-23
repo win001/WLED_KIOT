@@ -61,8 +61,8 @@ void kiotWledMQTTCallback(unsigned int type, const char *topic, const char *payl
             return;
         }
 
-        serializeJson(root, Serial); //debug
-
+        serializeJson(root, Serial); //debug TODO_S1 remove it after testing
+        DEBUG_MSG_P(PSTR(" \n"));
         bool verboseResponse = false;
 
         if (root["v"] && root.size() == 1) {
@@ -81,7 +81,8 @@ void kiotWledMQTTCallback(unsigned int type, const char *topic, const char *payl
         if (!interfaceUpdateCallMode) { // individual client response only needed if no WS broadcast soon
           if (verboseResponse) {
             // sendDataWs(client);
-            activeHomePong(true);
+            // activeHomePong(true);
+            // needReportHome(true);
           } else {
             // we have to send something back otherwise WS connection closes
             // client->text(F("{\"success\":true}"));
@@ -97,5 +98,6 @@ void kiotWledPing(JsonObject &root) {
   JsonObject state = root.createNestedObject("state");
   serializeState(state);
   JsonObject info  = root.createNestedObject("info");
-  serializeInfo(info);
+  // enabling this causes a crash due to stack overflow TODO_S1
+  // serializeInfo(info);
 }
