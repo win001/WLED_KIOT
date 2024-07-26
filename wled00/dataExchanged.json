@@ -6,13 +6,13 @@
     "seg": {
         "col": [
             [
-                255,
-                46,
-                95,
+                255, // R
+                46,  // G
+                95,  // B
                 0
             ],
-            [],
-            []
+            [], // background color
+            []  // 
         ]
     },
     "v": true,
@@ -206,16 +206,6 @@
     "time": 1721655749
 }
 
-// POST color pattern
-
-{
-    "seg": {
-        "pal": 63
-    },
-    "v": true,
-    "time": 1721655849
-}
-
 // POST effects
 
 {
@@ -225,6 +215,36 @@
     },
     "v": true,
     "time": 1721656196
+}
+
+// in the particular effect there are many options to change
+// color pallete for effects
+{
+    "seg": {
+        "pal": 63
+    },
+    "v": true,
+    "time": 1721992182
+}
+
+// effect speed 
+
+{
+    "seg": {
+        "sx": 138
+    },
+    "v": true,
+    "time": 1721992790
+}
+
+// effect intensity
+
+{
+    "seg": {
+        "ix": 119
+    },
+    "v": true,
+    "time": 1721993294
 }
 
 // POST segment changed
@@ -245,3 +265,333 @@
 }
 
 // POST 
+
+
+
+
+//-------------------------------------------- DATA FORMAT FOR VARIOUSE SETTNGS --------------------------------------------//
+http://kiotwled.local/settings/wifi
+
+
+
+set.cpp
+
+json.cpp
+
+
+
+/settings/leds
+
+ABen: on
+MA: 850
+LAsel: 55
+LA: 55
+LT0: 22
+CO0: 5
+WO0: 0
+SP0: 2
+LC0: 30
+L00: 2
+L10: 
+L20: 
+L30: 
+L40: 
+SL0: 0
+AW0: 0
+BT0: 0
+BE0: 2
+BT1: -1
+BE1: 0
+TT: 32
+IR: -1
+IT: 0
+data: 
+RL: -1
+RM: on
+BO: on
+CA: 128
+BP: 0
+GC: on
+GV: 2.8
+BF: 100
+TF: on
+EB: on
+TD: 700
+TP: 5
+TL: 60 // time
+TB: 0
+TW: 1
+AW: 255
+CB: 0
+PB: 0
+FR: 42
+data2: 
+
+
+/settings/sync
+
+UP: 21324
+U2: 65506
+GS: 1
+GR: 1
+G1: on
+R1: on
+RB: on
+RC: on
+RX: on
+SH: on
+UR: 0
+NL: on
+NB: on
+RD: on
+DI: 5568
+EP: 5568
+EU: 1
+DA: 1
+XX: 0
+PY: 0
+DM: 4
+ET: 2500
+RG: on
+WO: 0
+AI: Light
+AP: 0
+MS: 
+MQPORT: 1883
+MQUSER: 
+MQPASS: 
+MQCID: WLED-69111e
+MD: wled/69111e
+MG: wled/all
+HL: 1
+HI: 2500
+HO: on
+HB: on
+HC: on
+H0: 192
+H1: 168
+H2: 0
+H3: 0
+BD: 1152
+
+
+/settings/wifi
+
+CS: DEVIOT
+CP: **********
+I0: 0
+I1: 0
+I2: 0
+I3: 0
+G0: 0
+G1: 0
+G2: 0
+G3: 0
+S0: 255
+S1: 255
+S2: 255
+S3: 0
+CM: wled
+AS: WLED-AP
+AP: 
+AC: 1
+AB: 0
+RMAC: 
+ETH: 0
+
+
+/settings/2D
+
+SOMP: 0
+PW: 8
+PH: 8
+MPH: 1
+MPV: 1
+PB: 0
+PR: 0
+PV: 0
+MPC: 1
+data: 
+
+
+/settings/sec
+
+PIN: 
+OP: 
+AO: on
+data: 
+data2: 
+
+
+/settings/um
+
+SDA: -1
+SCL: -1
+MOSI: -1
+MISO: -1
+SCLK: -1
+
+
+/settings/time
+
+NS: 0.wled.pool.ntp.org
+CF: on
+TZ: 0
+UO: 0
+LTR: N
+LT: 0.00
+LNR: E
+LN: 0.00
+O1: 0
+O2: 29
+OM: 0
+CY: 20
+CI: 1
+CD: 1
+CH: 0
+CM: 0
+CS: 0
+A0: 0
+A1: 0
+MC: 0
+MN: 0
+MP0: 0
+ML0: 0
+MD0: 0
+MP1: 0
+ML1: 0
+MD1: 0
+W0: 255
+H0: 0
+N0: 0
+T0: 0
+M0: 1
+D0: 1
+P0: 12
+E0: 31
+W1: 255
+H1: 0
+N1: 0
+T1: 0
+M1: 1
+D1: 1
+P1: 12
+E1: 31
+W2: 255
+H2: 0
+N2: 0
+T2: 0
+M2: 1
+D2: 1
+P2: 12
+E2: 31
+W3: 255
+H3: 0
+N3: 0
+T3: 0
+M3: 1
+D3: 1
+P3: 12
+E3: 31
+W4: 255
+H4: 0
+N4: 0
+T4: 0
+M4: 1
+D4: 1
+P4: 12
+E4: 31
+W5: 255
+H5: 0
+N5: 0
+T5: 0
+M5: 1
+D5: 1
+P5: 12
+E5: 31
+W6: 255
+H6: 0
+N6: 0
+T6: 0
+M6: 1
+D6: 1
+P6: 12
+E6: 31
+W7: 255
+H7: 0
+N7: 0
+T7: 0
+M7: 1
+D7: 1
+P7: 12
+E7: 31
+W8: 255
+H8: 255
+N8: 0
+T8: 0
+W9: 255
+H9: 255
+N9: 0
+T9: 0
+
+/settings/leds
+
+
+// example for setting leds configuration
+
+
+{
+    "set": {
+      "ABen": "on",
+      "MA": 850,
+      "LAsel": 55,
+      "LA": 55,
+  
+      "stripP" : {  
+          "LT0": 22,
+          "CO0": 5,
+          "WO0": 0,
+          "SP0": 2,
+          "LC0": 100,
+  
+          "L00": 2,
+          "L10": null,
+          "L20": null,
+          "L30": null,
+          "L40": null,
+  
+          "SL0": 0,
+          "AW0": 0
+      },
+  
+      "BT0": 0,
+      "BE0": 2,
+      "BT1": -1,
+      "BE1": 0,
+      "TT": 32,
+      "IR": -1,
+      "IT": 0,
+      "data": null,
+      "RL": -1,
+      "RM": "on",
+      "BO": "on",
+      "CA": 128,
+      "BP": 0,
+      "GC": "on",
+      "GV": 2.8,
+      "BF": 100,
+      "TF": "on",
+      "EB": "on",
+      "TD": 700,
+      "TP": 5,
+      "TL": 60,
+      "TB": 0,
+      "TW": 1,
+      "AW": 255,
+      "CB": 0,
+      "PB": 0,
+      "FR": 42,
+      "data2": null
+    }
+  }
+//-------------------------------------------- DATA FORMAT FOR VARIOUSE SETTNGS --------------------------------------------//

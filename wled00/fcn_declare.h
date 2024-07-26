@@ -152,6 +152,11 @@ void serializeInfo(JsonObject root);
 void serializeModeNames(JsonArray root);
 void serializeModeData(JsonArray root);
 void serveJson(AsyncWebServerRequest* request);
+void serializeNodes(JsonObject root);
+void serializeNetworks(JsonObject root);
+void serializePalettes(JsonObject root, int page);
+void setPaletteColors(JsonArray json, byte* tcp);
+void setPaletteColors(JsonArray json, CRGBPalette16 palette);
 #ifdef WLED_ENABLE_JSONLIVE
 bool serveLiveLeds(AsyncWebServerRequest* request, uint32_t wsClient = 0);
 #endif
@@ -507,6 +512,8 @@ void _processAction(String action, JsonObject meta);
 void _processAction(String action);
 
 //kiot_wled.cpp
+void kiotWledInitCommands();
+void kiotHandleSettingsSet(JsonObject root, byte subPage);
 void kiotWledPing(JsonObject &root);
 void kiotWledSetup();
 void kiotWledLoop();

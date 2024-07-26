@@ -38,11 +38,11 @@ void homePong() {
 
 
     char buffer[homeId.length() + 15];
-    char messageBuffer[2048] = "";
+    char messageBuffer[1024] = "";
 
     // String pingString = getDeviceStatus();
 
-    StaticJsonDocument<2048> jsonBuffer;
+    StaticJsonDocument<1024> jsonBuffer;
     JsonObject root = jsonBuffer.to<JsonObject>();
 
 #if KIOT_WLED_SUPPORT
