@@ -16,18 +16,6 @@ Copyright (C) 2016-2017 by Xose Pérez <xose dot perez at gmail dot com>
 EmbedisWrap embedis(Serial);
 EEPROM_Rotate EEPROMr;
 
-// START move it to system.ino TODO_S1
-bool _serialDisabled = false;
-
-bool serialDisabled(){
-    return _serialDisabled;
-}
-
-void serialDisabled(bool value){
-    _serialDisabled = value;
-}
-// END
-
 unsigned long last_settings_sent = 0;
 bool _settings_save = false;
 bool _sendSettings = false;
@@ -424,10 +412,6 @@ void settingsLoop()
             _sendSettings = false;
         }
     }
-    // TODO_S2 : move it to system.ino
-    if (checkNeedsReset()) {
-        resetActual();
-    }    
 }
 
 void _settingsInitCommands() {
@@ -1070,7 +1054,7 @@ bool settingsMQTT() {
         return false;
     }
     DynamicJsonDocument root(1024);
-    // TODO_S2
+    // TODO_S1
     // root["app"] = APP_NAME;
     // root["version"] = APP_VERSION;
     // root["rev"] = APP_REVISION;

@@ -319,7 +319,12 @@ WLED_GLOBAL bool mqtt_firstbeat_reported _INIT(false);
 WLED_GLOBAL bool wifi_connected_beat _INIT(false);
 WLED_GLOBAL bool reset_reason_reported _INIT(false);
 WLED_GLOBAL unsigned long nowstamp _INIT(0);
+WLED_GLOBAL short int wifiCurrentStatus _INIT(0);
+WLED_GLOBAL unsigned long schedule_heartbeat _INIT(0);
 
+#if MQTT_REPORT_CONFIG
+WLED_GLOBAL bool config_mqtt_reported _INIT(false);
+#endif
 
 WLED_GLOBAL char pwRP[33] _INIT("0.00");
 WLED_GLOBAL char pwRC[33] _INIT("0.00");

@@ -261,7 +261,7 @@ typedef struct {
 } mqtt_message_t;
 std::vector<mqtt_message_t> _mqtt_queue;
 Ticker mqttFlushTicker;
-unsigned long schedule_heartbeat = 0;
+// unsigned long schedule_heartbeat = 0; TODO_S2 move to global in wled.h
 
 template <typename T> void _mqttApplySetting(T& current, T& updated) {
     if (current != updated) {

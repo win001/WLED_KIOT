@@ -508,6 +508,8 @@ pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), Pin
   #if defined(WLED_ENABLE_WEBSERVER)
   initServer();
   #endif
+  // TODO_S1: use some flag or move it to user module
+  systemSetup();
   settingsSetup();
   webSetup();
   mqttSetup();

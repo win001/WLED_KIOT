@@ -376,6 +376,9 @@ void userLoop();
 
 //util.cpp
 // START eepromrotate related
+void heartbeat_new();
+bool reportEventToMQTT(const char *ev, const char *meta);
+bool reportEventToMQTT(const char * ev, JsonObject& meta);
 void eepromRotate(bool value);
 String eepromSectors();
 void eepromSectorsDebug();
@@ -557,6 +560,11 @@ void debugSend_P(PGM_P format_P, ...);
 void serialSend_P(PGM_P format, ...);
 void serialSend(const char* format, ...); 
 void debugConfigure();
+
+// kiot_system.cpp
+void systemSetup();
+void serialDisabled(bool value);
+bool serialDisabled();
 
 //kiot_settings.cpp
 #include <Embedis.h>

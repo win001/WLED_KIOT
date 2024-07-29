@@ -778,7 +778,7 @@ unsigned long getUptime() {
     return uptime_seconds;
 }
 
-#if 0 //HEARTBEAT_ENABLED
+#if HEARTBEAT_ENABLED
 
 /* void heartbeat() {
     unsigned long uptime_seconds = getUptime();
@@ -936,8 +936,8 @@ void heartbeat_new() {
     mqttSend(MQTT_TOPIC_STATUS, MQTT_STATUS_ONLINE, false, true, false, true);
 #endif
 
-    DynamicJsonBuffer jsonBuffer(300);
-    JsonObject &root = jsonBuffer.createObject();
+    StaticJsonDocument<300> jsonBuffer;
+    JsonObject root = jsonBuffer.to<JsonObject>();
 
 #if (MQTT_REPORT_LAST_RESET_REASON)
     if (!reset_reason_reported) {
@@ -994,7 +994,8 @@ void heartbeat_new() {
 #endif
 #if (MQTT_REPORT_IP)
     if (!wifi_connected_beat) {
-        root[MQTT_TOPIC_IP] = getIP();
+        // root[MQTT_TOPIC_IP] = getIP();  // need device local ip
+        root[MQTT_TOPIC_IP] = Network.localIP(); // TOSO_S1
         // mqttSend(MQTT_TOPIC_IP, getIP().c_str(),true);
     }
 #endif
@@ -1006,7 +1007,8 @@ void heartbeat_new() {
 #endif
 #if (MQTT_REPORT_NETWORK)
     if (!wifi_connected_beat) {
-        root[MQTT_TOPIC_NETWORK] = getNetwork();
+        // root[MQTT_TOPIC_NETWORK] = getNetwork(); // need device ssid
+        // serializeNetworks(root[MQTT_TOPIC_NETWORK]);; // TOSO_S1
         // mqttSend(MQTT_TOPIC_NETWORK, getNetwork().c_str(),true);
     }
 #endif
@@ -1067,7 +1069,8 @@ void heartbeat_new() {
 #endif
 #endif
     String output;
-    root.printTo(output);
+    // root.printTo(output);
+    serializeJson(root, output);
     if (mqttSend(MQTT_TOPIC_BEAT, output.c_str(), false)) {
         mqtt_firstbeat_reported = true;
         wifi_connected_beat = true;
@@ -1087,6 +1090,16 @@ bool reportEventToMQTT(const char *ev, const char *meta) {
     serializeJson(root, messageBuffer, sizeof(messageBuffer));
     return mqttSend(MQTT_TOPIC_EVENT_LARGE, messageBuffer, false, false, true,
                     false);
+}
+
+bool reportEventToMQTT(const char * ev, JsonObject& meta){
+    if(!canSendMqttMessage()) return false;
+    char messageBuffer[512] = "";
+    StaticJsonDocument<512> root;
+    root["e"] = ev;
+    root["e_m_json"] = meta;
+    serializeJson(root, messageBuffer, sizeof(messageBuffer));
+    return mqttSend(MQTT_TOPIC_EVENT_LARGE, messageBuffer, false, false, true, false);
 }
 
 #if ESP_ARDUINO_CORE_IS == 1

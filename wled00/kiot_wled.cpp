@@ -40,7 +40,12 @@ void kiotWledInitCommands() {
     settingsRegisterCommand(F("PING"), [](Embedis* e) {
         activeHomePong(true);
         DEBUG_MSG_P(PSTR("Done\n"));
-    }); 
+    });
+
+    settingsRegisterCommand(F("HEARTBEAT"), [](Embedis* e) {
+        schedule_heartbeat = millis();
+        DEBUG_MSG_P(PSTR("Done\n"));
+    });      
 
     settingsRegisterCommand(F("MODENAMES"), [](Embedis* e) {
         StaticJsonDocument<512> doc;
