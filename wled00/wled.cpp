@@ -514,6 +514,7 @@ pinManager.allocateMultiplePins(pins, sizeof(pins)/sizeof(managed_pin_type), Pin
   homeReportSetup();
   kiotWledSetup();
   httpClientSetup();
+  homeSetup();
   DEBUG_PRINT(F("heap ")); DEBUG_PRINTLN(ESP.getFreeHeap());
 
   enableWatchdog();

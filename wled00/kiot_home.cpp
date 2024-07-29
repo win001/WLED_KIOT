@@ -9,6 +9,8 @@ unsigned long last_home_ping = 0, last_home_pong = 0;
     root["homeId"] = getSetting("homeId", "");
 } */
 bool _reportHome = false;
+bool _reportHomeImmidiate = false;
+void activeHomePong();
 void relayString(JsonObject& root) { // TODO_S2
     JsonArray relay = root.createNestedArray("relays");
     for (unsigned char i = 1; i <= 5; i++) {
@@ -94,7 +96,7 @@ void reportEventToHome(String name, String value) {
 
 void homeLoop() {
 #if MQTT_ACTIVE_STATE_REPORT
-    activeHomePong(false);
+    activeHomePong();
 #endif
 }
 void homeSetup() {
@@ -166,11 +168,16 @@ bool needReportHome() {
     return _reportHome;
 }
 
+void activeHomePong(bool immidiate) {
+    _reportHomeImmidiate = immidiate;
+}
+
 #if MQTT_ACTIVE_STATE_REPORT || MQTT_REPORT_EVENT_TO_HOME
 
-void activeHomePong(bool immidiate) {
+void activeHomePong() {
     // If immidiate set to true then send HomePing weather or not home_ping is active.
-    if (immidiate) {
+    if (_reportHomeImmidiate) {
+        _reportHomeImmidiate = false;
         homePong();
     } else if (last_home_ping != 0 && (nowstamp - last_home_ping) < MQTT_ACTIVE_STATE_TIMEOUT) {
         if ((nowstamp - last_home_pong) > MQTT_ACTIVE_STATE_HOME_PONG_INTERVAL || needReportHome()) {
